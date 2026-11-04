@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useReadContract, useReadContracts, useBalance } from "wagmi";
 import { parseEther, parseEventLogs, getAddress } from "viem";
@@ -20,6 +20,7 @@ import { fetchConfig } from "@/lib/hooks/useGames";
 import { useTx, errorText } from "@/lib/hooks/useTx";
 import { mon, tokens } from "@/lib/format";
 import { monadTestnet } from "@/lib/chain";
+import { DegenFeed } from "@/components/DegenFeed";
 
 type Phase = "idle" | "paying" | "playing" | "signing" | "claiming" | "done";
 
@@ -91,6 +92,23 @@ export default function GamePage() {
   const spot = r(16) as bigint | undefined;
 
   const isCreator = !!address && !!g && getAddress(address) === getAddress(g.creator);
+
+  // Personal best on this game, kept in this browser (the game iframe has no storage).
+  const bestKey = `pop:best:${params.id}`;
+  const [best, setBest] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem(bestKey));
+      if (Number.isFinite(v) && v > 0) setBest(v);
+    } catch {}
+  }, [bestKey]);
+  function saveBest(s: number) {
+    if (best !== undefined && s <= best) return;
+    setBest(s);
+    try {
+      localStorage.setItem(bestKey, String(s));
+    } catch {}
+  }
 
   // ------------------------------------------------------------ play loop
   const [phase, setPhase] = useState<Phase>("idle");
@@ -230,7 +248,17 @@ export default function GamePage() {
 
           <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
             {cfg ? (
-              <GamePlayer ref={player} config={cfg} onScore={setScore} onGameOver={(s) => onGameOver(s)} />
+              <GamePlayer
+                ref={player}
+                config={cfg}
+                best={best}
+                ticker={symbol !== "…" ? symbol : undefined}
+                onScore={setScore}
+                onGameOver={(s) => {
+                  saveBest(s);
+                  onGameOver(s);
+                }}
+              />
             ) : (
               <div className="grid aspect-[2/3] place-items-center text-white/50">
                 {config.isLoading || game.isLoading ? "Loading game…" : "Game config not found."}
@@ -267,13 +295,25 @@ export default function GamePage() {
               )}
             </div>
             <p className="text-xs text-white/50">
-              70% of every entry fee goes to the vault.
+              70% of every entry fee goes to the vault, so the floor only goes up.
               {!miningClosed && " While mining is open, finishing a run mines tokens: 10 + 1 per point."}
             </p>
             {phase === "done" && lastMined !== null && (
-              <p className="text-sm text-emerald-300">
-                {lastMined > 0n ? `You mined ${tokens(lastMined)} ${symbol}.` : "Run recorded. Mining is closed, so no tokens were mined."} Play again to add more to the vault.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-emerald-300">
+                  {lastMined > 0n ? `You mined ${tokens(lastMined)} $${symbol}. LFG.` : "Run recorded on-chain. Mining is closed, so no tokens this time."} Every run pumps the floor.
+                </p>
+                <a
+                  className={btnGhost}
+                  target="_blank"
+                  rel="noreferrer"
+                  href={`https://x.com/intent/post?text=${encodeURIComponent(
+                    `${score >= 30 ? "built different:" : score <= 5 ? "got rekt:" : "gm. just scored"} ${score} ${cfg?.scoreLabel ?? "points"} in ${title} ($${symbol}) on @monad_xyz testnet.\n\nevery run pumps an unruggable floor. ape in:`,
+                  )}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
+                >
+                  Share on X
+                </a>
+              </div>
             )}
             {msg && <p className="text-sm text-red-300">{msg}</p>}
           </div>
@@ -282,13 +322,17 @@ export default function GamePage() {
         {/* -------------------------------------------------- stats column */}
         <section className="flex flex-col gap-6">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Big label="Floor price" value={`${mon(floor, 6)} MON`} hint="vault ÷ supply" accent />
+            <Big label="Unruggable floor" value={`${mon(floor, 6)} MON`} hint="vault ÷ supply" accent />
             <Big label="Vault" value={`${mon(vaultBal.data?.value, 4)} MON`} />
             <Big label="Supply" value={`${tokens(supply, 0)} ${symbol}`} />
             <Big label="Players" value={players?.toString() ?? "…"} />
             <Big label="Runs" value={finished?.toString() ?? "…"} />
             <Big label="Best score" value={bestScore?.toString() ?? "…"} hint={bestPlayer && bestScore ? short(bestPlayer) : undefined} />
           </div>
+
+          {g && (
+            <DegenFeed sessions={g.sessions} curve={g.curve} vault={g.vault} symbol={symbol} creator={g.creator} />
+          )}
 
           {/* Mining / trading */}
           <Panel title={miningClosed ? "Trading is open" : "Play-mining is open"}>

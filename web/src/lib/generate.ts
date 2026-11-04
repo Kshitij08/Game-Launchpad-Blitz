@@ -1,6 +1,6 @@
 // Server-only module: calls Claude to turn a prompt into a GameConfig.
 import Anthropic from "@anthropic-ai/sdk";
-import { gameConfigSchema, TEMPLATES, VFX_STYLES, VFX_SLOTS, isAssetRef, type GameConfig, type TemplateId } from "@/lib/game-config";
+import { gameConfigSchema, TEMPLATES, VFX_STYLES, VFX_SLOTS, MEME_BACKDROPS, isAssetRef, type GameConfig, type TemplateId } from "@/lib/game-config";
 import { SAMPLE_CONFIGS } from "./sample-configs";
 
 const MODEL = "claude-sonnet-5-5";
@@ -68,6 +68,14 @@ const OUTPUT_SCHEMA = obj({
     fireRateMs: num("120..800 ms between shots (shooter)"),
     enemyHp: { type: "integer", description: "1..5 hits per enemy (shooter)" },
   }),
+  meme: obj({
+    enabled: { type: "boolean" },
+    good: { type: "array", items: str("max 24 chars, ALL CAPS shout"), description: "8-12 hype shouts for combos/near misses" },
+    bad: { type: "array", items: str("max 24 chars"), description: "5-8 death lines" },
+    milestone: { type: "array", items: str("max 24 chars; may use ${ticker}"), description: "4-8 milestone / new-best lines" },
+    backdrop: { type: "string", enum: [...MEME_BACKDROPS] },
+    font: { type: "string", enum: ["impact", "pixel", "clean"] },
+  }),
   vfx: obj(
     Object.fromEntries(
       VFX_SLOTS.map((slot) => [
@@ -120,6 +128,13 @@ SPRITES: each is a compact, self-contained inline SVG string.
 - Sizes: player 48x48 (facing RIGHT for flappy/runner, facing UP for shooter/dodge); obstacle: shooter = enemy 48x48 facing DOWN, dodge = falling hazard 40x40, flappy = one tall pipe about 72x560 drawn upright with its cap/end at the TOP (the engine flips it for the upper pipe), runner = ground obstacle about 48x64 sitting on its bottom edge; collectible 32x32; decor 128x64 background parallax element (clouds, hills, stars...).
 - Use only basic shapes/paths/gradients. NO <script>, NO <image>, NO <foreignObject>, NO <text>, NO event handlers, NO external references or URLs (href only to internal "#id"), NO CSS @import. Transparent background.
 - Keep each under ~3000 characters. Bold, simple, readable at small size, on-theme, consistent style across sprites.
+
+VOICE AND MEMES: players are crypto degens on Monad (a very fast, purple-branded L1). Lean HARD into meme culture while staying on the prompt's theme:
+- title: punchy, meme-able, can pun on crypto ("Rug Runner", "Gas Fee Flapper", "Jeet Invaders"). tagline: one funny line in degen voice.
+- scoreLabel: crypto-flavoured where it fits ("sats", "bags", "pumps", "jeets", "candles", "rugs dodged").
+- meme.enabled true. meme.good: hype shouts mixing classics (LFG, WAGMI, GM, BULLISH, FEW, SER, BASED, APE IN, SEND IT) with theme-specific ones. meme.bad: death lines (REKT, NGMI, IT'S SO OVER, RUGGED, LIQUIDATED, PAPER HANDS) plus a themed one. meme.milestone: number-go-up lines (NUMBER GO UP, WE'RE SO BACK, TO THE MOON, ATH, PARABOLIC, MONAD SPEED); you may use "$\${ticker} TO THE MOON" style with the literal text \${ticker}.
+- meme.backdrop: "chart" (a pumping candlestick chart, the default and best for anything trading/money/crypto themed), "matrix" (hacker/tech), "grid" (synthwave/neon/retro), "none" (when the theme is calm or the art is busy). meme.font: "impact" (classic meme captions, default), "pixel" (retro/8-bit themes), "clean".
+- Crypto prompts map naturally: candles = obstacles or collectibles, rugs/jeets/bears = enemies, bags/sats/coins = collectibles, a frog/dog/cat mascot = player. Keep everything original: do not copy real logos, brands or specific copyrighted characters.
 
 UPLOADED ASSETS: in edit mode some sprites may be "asset:0x..." strings (the creator's own uploads). Copy those values back unchanged unless the request explicitly asks to replace that sprite.
 
@@ -224,6 +239,17 @@ function repair(raw: any, forcedTemplate?: TemplateId): unknown {
   tu.playerSpeed = clamp(tu.playerSpeed, 200, 900, false, 450);
   tu.fireRateMs = clamp(tu.fireRateMs, 120, 800, false, 280);
   tu.enemyHp = clamp(tu.enemyHp, 1, 5, true, 1);
+  if (c.meme && typeof c.meme === "object") {
+    const m = c.meme;
+    m.enabled = m.enabled !== false;
+    for (const k of ["good", "bad", "milestone"]) {
+      const arr = (Array.isArray(m[k]) ? m[k] : []).filter((x: unknown) => typeof x === "string" && x.trim()).map((x: string) => x.trim().slice(0, 24)).slice(0, 16);
+      if (arr.length) m[k] = arr;
+      else delete m[k];
+    }
+    if (!(MEME_BACKDROPS as readonly string[]).includes(m.backdrop)) delete m.backdrop;
+    if (!["impact", "pixel", "clean"].includes(m.font)) delete m.font;
+  }
   if (c.vfx && typeof c.vfx === "object") {
     for (const slot of Object.keys(c.vfx)) {
       const v = c.vfx[slot];

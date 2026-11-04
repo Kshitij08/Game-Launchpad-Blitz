@@ -45,7 +45,16 @@ export type VfxPreset = z.infer<typeof vfxPreset>;
 /** Sound slot: uploaded audio, "none" to mute, or omitted for the built-in synth sound. */
 const sound = z.union([assetRef, z.literal("none")]);
 
-export const SFX_SLOTS = ["jump", "score", "collect", "hit", "shoot", "music"] as const;
+/** chart = scrolling candlestick chart, pumping as your score climbs; matrix = falling hex; grid = synthwave grid. */
+export const MEME_BACKDROPS = ["none", "chart", "matrix", "grid"] as const;
+
+export const DEFAULT_MEME = {
+  good: ["LFG", "WAGMI", "GM", "BULLISH", "SER...", "FEW", "DIAMOND HANDS", "APE IN", "SEND IT", "BASED"],
+  bad: ["REKT", "NGMI", "IT'S SO OVER", "RUGGED", "LIQUIDATED", "PAPER HANDS", "GN"],
+  milestone: ["NUMBER GO UP", "WE'RE SO BACK", "TO THE MOON", "MONAD SPEED", "PARABOLIC", "ATH"],
+};
+
+export const SFX_SLOTS =["jump", "score", "collect", "hit", "shoot", "music"] as const;
 export const VFX_SLOTS = ["trail", "collect", "hit", "score", "shoot"] as const;
 
 export const gameConfigSchema = z.object({
@@ -95,6 +104,23 @@ export const gameConfigSchema = z.object({
     .optional(),
   /** Sound effects. Missing slots use built-in synthesized sounds. */
   sfx: z.object(Object.fromEntries(SFX_SLOTS.map((s) => [s, sound.optional()])) as Record<(typeof SFX_SLOTS)[number], z.ZodOptional<typeof sound>>).optional(),
+  /**
+   * Meme layer: punchy text popups (combos, near misses, milestones, death),
+   * meme font and an optional backdrop. Missing = on, with built-in crypto phrases.
+   */
+  meme: z
+    .object({
+      enabled: z.boolean(),
+      // Short shouts shown on good moments (combos, near misses), e.g. "LFG", "WAGMI", "ser pls".
+      good: z.array(z.string().min(1).max(24)).max(16).optional(),
+      // Shown on death, e.g. "REKT", "NGMI", "It's so over".
+      bad: z.array(z.string().min(1).max(24)).max(16).optional(),
+      // Shown on score milestones and new bests, e.g. "NUMBER GO UP", "We're so back".
+      milestone: z.array(z.string().min(1).max(24)).max(16).optional(),
+      backdrop: z.enum(MEME_BACKDROPS).optional(), // drawn behind the game
+      font: z.enum(["impact", "pixel", "clean"]).optional(), // impact = classic meme caption
+    })
+    .optional(),
   /** Particle effects. Missing slots use the template's default style. */
   vfx: z.object(Object.fromEntries(VFX_SLOTS.map((s) => [s, vfxPreset.optional()])) as Record<(typeof VFX_SLOTS)[number], z.ZodOptional<typeof vfxPreset>>).optional(),
 });
@@ -121,7 +147,14 @@ export function collectAssetRefs(config: GameConfig): AssetRef[] {
  * opaque-origin iframe never has to fetch anything itself.
  */
 export type ParentToGame =
-  | { source: "pop"; type: "load"; config: GameConfig; assets?: Record<string, string> }
+  | {
+      source: "pop";
+      type: "load";
+      config: GameConfig;
+      assets?: Record<string, string>;
+      best?: number; // player's best score on this game (iframe has no storage), for "NEW BEST"
+      ticker?: string; // token symbol, e.g. "PIZZA", for meme lines like "$PIZZA TO THE MOON"
+    }
   | { source: "pop"; type: "start" } // begin a run (after a session is paid for)
   | { source: "pop"; type: "reset" } // back to title screen
   | { source: "pop"; type: "mute"; muted: boolean };

@@ -13,6 +13,9 @@
       A missing or broken template file only disables that template.
     -->
     <style>
+      /* Meme fonts (served with CORS headers for the opaque-origin sandbox). core.js waits on document.fonts.load. */
+      @font-face { font-family: "PopImpact"; src: url("fonts/anton.woff2") format("woff2"); font-display: block; }
+      @font-face { font-family: "PopPixel"; src: url("fonts/press-start-2p.woff2") format("woff2"); font-display: block; }
       html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
       body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
       #game { width: 100%; height: 100%; }

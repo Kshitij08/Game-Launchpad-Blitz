@@ -43,9 +43,9 @@ The run starts on the player's first input after the parent sends `start`; until
 | `rng()` | seeded random in [0,1) |
 | `elapsedMs` | time since the run started |
 | `speed()` | current speed: `physics.scrollSpeed + physics.speedRampPerSec * elapsedSec` |
-| `addScore(n, x?, y?)` | adds points, updates HUD, posts `score`, plays `score` sfx + vfx at x,y |
+| `addScore(n, x?, y?)` | adds points, updates HUD, posts `score`, plays `score` sfx + vfx, "+N" popup, combo + callouts (see Juice helpers) |
 | `collect(x, y)` | adds `pointsPerCollectible`, plays `collect` sfx + vfx |
-| `gameOver(x?, y?)` | ends the run once: `hit` sfx + vfx, shake, game-over screen, posts `gameOver` |
+| `gameOver(x?, y?)` | ends the run once: hit-stop, flash, shake, slow-mo, death screen, posts `gameOver` |
 | `sfx(slot)` | `jump` `score` `collect` `hit` `shoot` (uploaded audio, built-in synth, or muted) |
 | `vfx(slot, x, y)` | one-shot burst: `collect` `hit` `score` `shoot` |
 | `trail(gameObject)` | attaches the `trail` vfx emitter to follow an object (no-op if style is none) |
@@ -91,10 +91,62 @@ no manual reset is needed. Phases: `title` → (parent `start`) → `armed` → 
 | `phase` | `"title" \| "armed" \| "live" \| "over"` |
 | `score` | current score (read-only; use `addScore` / `collect`) |
 
-**Depths used by core:** background 0, decor 1–1.5, ground 3, HUD 40, burst vfx 44, overlays 50–60.
+**Depths used by core:** background 0, meme backdrop 0.5–0.6, decor 1–1.5, speed lines 1.8, ground 3, vignette 39,
+HUD 40, burst vfx 44, popups 46, overlays 50–60.
 Templates typically use 2–8. Trails sit just below the object they follow.
 
-**Sfx/vfx details.** `addScore` rate-limits the score sound to one per 250 ms; its vfx fires on every call
+**Sfx/vfx details.** `addScore` rate-limits the score sound to one per 120 ms; its vfx fires on every call
 (set `vfx.score.style = "none"` to disable). Default vfx when a slot is missing: trail sparkle, collect sparkle,
 hit explosion, score confetti, shoot pixels. Default colours come from the palette. `ctx.trail()` returns the
 emitter (or null).
+
+## Juice helpers (game feel)
+
+All are on `ctx`; call them defensively (`ctx.popup?.(...)`) so older cores don't crash. All are cheap and safe to
+call every frame (they rate-limit / pool internally) and are no-ops after `gameOver` where that makes sense.
+
+| helper | what |
+| --- | --- |
+| `popup(text, x, y, opts?)` | floating text: pops in with scale overshoot, holds, rises and fades. `opts = { size?, color?: "#rrggbb", kind?: "score" \| "meme" \| "big", rotate?: deg }`. `score` = small accent "+N"; `meme` = white caps, meme font, random tilt; `big` = huge callout. Pooled (max 14 live; oldest is recycled). Returns the Text or null |
+| `hitstop(ms)` | freeze the world for `ms` (clamped 0–200; 40–120 feels right): `update` is not called, scrolling stops, particles pause |
+| `shake(intensity)` | camera shake, `0..1` (0.2 = bump, 0.5 = hit, 0.9 = death). A weaker shake never cuts off a stronger running one |
+| `flash(color?, ms?)` | full-screen camera flash, `color` `"#rrggbb"` or `0xrrggbb` (default white), `ms` default 110 |
+| `slowmo(scale, ms)` | time scale (0.05–1) for `ms`, then eases back to 1. `update` receives the scaled `dtMs` |
+| `nearMiss(x, y)` | "CLOSE!" or a meme `good` phrase, +1 bonus point (bumps the combo), 160 ms slow-mo, pitch blip. Rate-limited to one per 700 ms; returns `true` if it fired. Only while live |
+| `combo()` | current combo count (read-only). `addScore`/`collect`/`nearMiss` bump it; it resets after 1.5 s without scoring. Don't call it to increment |
+| `squash(gameObject, sx, sy, ms?)` | set scale to base × (sx, sy) and spring back (Back.easeOut, default 180 ms). Base scale is captured when no squash is running, so call `setDisplaySize`/`setScale` before, not during, a squash |
+| `phrase(kind)` | random meme phrase, `kind` = `"good" \| "bad" \| "milestone"` (already `${ticker}`-interpolated) |
+| `meme` | resolved meme settings `{ enabled, good[], bad[], milestone[], backdrop, font, family, ticker }`; `meme.family` is the CSS font family for your own Text objects |
+
+`sfx(slot, pitch?)` also accepts a pitch multiplier (0.5–2.5).
+
+**What core does automatically** (templates don't need to):
+- `addScore(n, x, y)`: "+N" popup at x,y, HUD punch, combo bump, score sfx pitched up with the combo, chart pump,
+  combo callouts at x3, x5, x10, x15… ("X5 LFG"), milestone callouts at 10/25/50/100/200… and a one-time
+  "NEW ATH!" when the run passes the player's best. One callout per score event (best > milestone > combo).
+- `collect(x, y)`: same, with the collect sound/vfx.
+- `gameOver(x, y)`: 110 ms hit-stop, white flash, big shake, slow-mo (0.3 for ~750 ms) with a small zoom punch, chart
+  dumps red, then the death screen (random `bad` phrase stamped in, score, NEW BEST / BEST, "run it back" hint).
+  `gameOver` is posted to the parent immediately; `durationMs` is real (unscaled) live time.
+- Speed lines that grow with `speed()` and the combo; vignette; glow on the score (WebGL; dropped automatically
+  together with speed lines if the frame rate sags; `?lowfx` forces low-fx).
+- Title screen (meme-font title, "$TICKER · LIVE ON MONAD" chip, pulsing "TAP TO APE IN"), "GM" on the ready
+  screen and "LFG!" on the first input.
+
+**Optional template hook:** `dying(ctx, dtMs)` is called during the ~750 ms slow-mo between `gameOver()` and the
+death screen (scaled dt), e.g. to let the player tumble. Without it the world just freezes under the effects.
+Title-screen bobbing of the player stays the template's job (`idle`).
+
+## Meme layer
+
+`config.meme` (optional; missing = on with built-in crypto phrases, impact font, `chart` backdrop):
+`{ enabled, good?, bad?, milestone?, backdrop?: "none"|"chart"|"matrix"|"grid", font?: "impact"|"pixel"|"clean" }`.
+`enabled: false` switches to neutral phrases ("NICE!", "GAME OVER"), the clean font and no backdrop unless one is set.
+Phrases support `${ticker}` (e.g. `"$${ticker} TO THE MOON"` → "$PIZZA TO THE MOON"; "MON" when no ticker). When a
+ticker is given and no custom milestones, "$TICKER TO THE MOON" style lines are mixed in.
+
+The parent passes `best` and `ticker` with `load` (`<GamePlayer best={…} ticker="PIZZA" />`). The engine raises its
+local best after every run, and forgets it when a different config is loaded.
+
+Fonts: `/games/fonts/anton.woff2` (`"PopImpact"`) and `/games/fonts/press-start-2p.woff2` (`"PopPixel"`), declared
+in engine.html and awaited before the scene starts (2.5 s timeout, falls back to Impact / Arial Black / monospace).

@@ -15,18 +15,19 @@ export default function Explore() {
       <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-10">
         <section className="flex flex-col gap-4">
           <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">
-            Prompt a game. Launch its token. <span className="text-[#a58cff]">Play backs its value.</span>
+            Prompt a game. Launch a coin. <span className="text-[#a58cff]">Every run pumps an unruggable floor.</span>
           </h1>
           <p className="max-w-2xl text-white/70">
-            Early tokens are mined only by playing. Every paid play fills a vault, and any holder can redeem
-            from it at the floor price: <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm">floor = vault ÷ supply</code>.
+            No snipers, no dev dumps: early coins can only be mined by playing. Every paid run fills a vault that
+            any holder can redeem from, so the floor can&apos;t be rugged:{" "}
+            <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm">floor = vault ÷ supply</code>.
           </p>
           <div>
             <Link
               href="/create"
               className="inline-flex rounded-lg bg-[#836ef9] px-5 py-2.5 font-semibold text-white hover:bg-[#9583ff]"
             >
-              Create a game
+              Launch a game coin
             </Link>
           </div>
         </section>

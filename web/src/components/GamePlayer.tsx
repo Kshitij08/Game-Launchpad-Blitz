@@ -24,6 +24,9 @@
  * never fetches. A failed fetch is skipped; the engine falls back to a block
  * sprite / synth sound for that slot.
  *
+ * Meme layer: `best` (for "NEW BEST") and `ticker` (for "$TICKER TO THE MOON")
+ * are sent with every "load"; the engine also raises its local best after each run.
+ *
  * Audio: `muted` sends {type:"mute"} on change and after every load.
  *
  * Sizing: by default the wrapper is a 2:3 portrait box, full width up to 480px.
@@ -104,11 +107,15 @@ export interface GamePlayerProps {
   autoStart?: boolean;
   /** Mute all game audio (sfx + music). */
   muted?: boolean;
+  /** Player's best score on this game, for "NEW BEST" (the sandboxed iframe has no storage). Sent with each load. */
+  best?: number;
+  /** Token symbol, e.g. "PIZZA", for meme lines like "$PIZZA TO THE MOON". Sent with each load. */
+  ticker?: string;
   className?: string;
 }
 
 export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function GamePlayer(
-  { config, onScore, onGameOver, onError, onLoaded, autoStart = false, muted = false, className },
+  { config, onScore, onGameOver, onError, onLoaded, autoStart = false, muted = false, best, ticker, className },
   ref,
 ) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -116,9 +123,9 @@ export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function
   const [error, setError] = useState<string | null>(null);
 
   // Latest props in refs so the message listener never goes stale.
-  const cb = useRef({ onScore, onGameOver, onError, onLoaded, autoStart, muted });
+  const cb = useRef({ onScore, onGameOver, onError, onLoaded, autoStart, muted, best, ticker });
   useEffect(() => {
-    cb.current = { onScore, onGameOver, onError, onLoaded, autoStart, muted };
+    cb.current = { onScore, onGameOver, onError, onLoaded, autoStart, muted, best, ticker };
   });
 
   const configKey = useMemo(() => JSON.stringify(config), [config]);
@@ -152,7 +159,15 @@ export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function
     const key = configKey;
     loadConfigAssets(parsed.data).then((assets) => {
       if (st.current.sentKey !== key) return; // config changed while fetching
-      send({ source: "pop", type: "load", config: parsed.data, assets });
+      const { best: b, ticker: tk } = cb.current;
+      send({
+        source: "pop",
+        type: "load",
+        config: parsed.data,
+        assets,
+        ...(typeof b === "number" && Number.isFinite(b) ? { best: b } : {}),
+        ...(tk ? { ticker: tk } : {}),
+      });
     });
   }, [configKey, send, fail]);
 

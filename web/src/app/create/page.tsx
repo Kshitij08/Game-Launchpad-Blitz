@@ -181,11 +181,11 @@ function Create() {
 
           {!isRemix && !draft && (
             <div className="flex flex-col gap-2">
-              <span className="text-sm text-white/60">Or try one of these:</span>
+              <span className="text-sm text-white/60">Need alpha? Try one:</span>
               <div className="flex flex-wrap gap-2">
-                {SAMPLE_CONFIGS.map((s) => (
-                  <button key={s.id} onClick={() => setPrompt(s.prompt)} className="rounded-lg border border-white/10 px-3 py-1.5 text-left text-sm text-white/80 hover:border-white/30">
-                    {s.prompt}
+                {[...MEME_PROMPTS, ...SAMPLE_CONFIGS.map((s) => s.prompt)].map((p) => (
+                  <button key={p} onClick={() => setPrompt(p)} className="rounded-lg border border-white/10 px-3 py-1.5 text-left text-sm text-white/80 hover:border-[#a58cff]/60">
+                    {p}
                   </button>
                 ))}
               </div>
@@ -248,7 +248,12 @@ function Create() {
         <aside className="flex flex-col gap-3">
           <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
             {draft ? (
-              <GamePlayer ref={player} config={draft.config} onGameOver={(s) => setTestScore(s)} />
+              <GamePlayer
+                ref={player}
+                config={draft.config}
+                ticker={symbol.trim().toUpperCase() || undefined}
+                onGameOver={(s) => setTestScore(s)}
+              />
             ) : (
               <div className="grid aspect-[2/3] place-items-center p-8 text-center text-white/40">
                 {generating ? "Building your game…" : "Your game preview appears here."}
@@ -266,6 +271,14 @@ function Create() {
     </div>
   );
 }
+
+const MEME_PROMPTS = [
+  "a frog dodging red candles and catching green ones",
+  "a purple cat shooting down jeets and paper-handed bears",
+  "tap to keep the chart flying above the liquidation line",
+  "a degen sprinting from a rug pull, jumping over gas fees",
+  "a dog in a spacesuit catching airdrops while dodging scam links",
+];
 
 function tickerFrom(title: string) {
   const words = title.toUpperCase().replace(/[^A-Z0-9 ]/g, "").split(/\s+/).filter(Boolean);
