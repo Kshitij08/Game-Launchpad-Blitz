@@ -1,26 +1,581 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Monad brand */
+  --monad-purple: #6e54ff;
+  --monad-lilac: #ddd7fe;
+  --monad-ink: #0e091c;
+  --monad-black: #000000;
+  --monad-white: #ffffff;
+  --monad-cyan: #85e6ff;
+  --monad-sky: #b9e3f9;
+  --monad-pink: #ff8ee4;
+  --monad-orange: #ffae45;
+
+  --background: var(--monad-ink);
+  --foreground: var(--monad-white);
+  --surface: #141026;
+  --surface-2: #1a1530;
+  --border: color-mix(in srgb, var(--monad-lilac) 16%, transparent);
+  --accent: var(--monad-purple);
+  --accent-soft: color-mix(in srgb, var(--monad-purple) 20%, transparent);
+  --muted: color-mix(in srgb, var(--monad-lilac) 58%, transparent);
+  --danger: #ff6b8a;
+  --good: #5dffb1;
+  --press: #2a1f7a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-monad: var(--monad-purple);
+  --color-monad-lilac: var(--monad-lilac);
+  --color-monad-ink: var(--monad-ink);
+  --color-monad-cyan: var(--monad-cyan);
+  --color-monad-pink: var(--monad-pink);
+  --color-monad-orange: var(--monad-orange);
+  --font-pixel: var(--font-pixel);
+  --font-pixel-body: var(--font-pixel-body);
+  --font-sans: var(--font-pixel-body);
+  --font-mono: var(--font-pixel-body);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
+}
+
+img[data-pixel],
+.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  min-height: 100vh;
+  /* Quiet Monad wash — no loud grid fighting the content */
+  background-image:
+    radial-gradient(ellipse 90% 55% at 50% -15%, rgba(110, 84, 255, 0.22), transparent 58%),
+    radial-gradient(ellipse 50% 35% at 100% 100%, rgba(255, 142, 228, 0.06), transparent 55%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: var(--monad-purple);
+  color: white;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Type — Press Start for brand/UI chrome, VT323 for reading + numbers        */
+/* -------------------------------------------------------------------------- */
+
+.font-pixel {
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  line-height: 1.55;
+}
+
+.font-pixel-body {
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+}
+
+.pixel-title {
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  letter-spacing: 0.05em;
+  line-height: 1.55;
+  text-transform: uppercase;
+}
+
+.pixel-brand {
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  text-transform: uppercase;
+  font-size: clamp(1.35rem, 4.5vw, 2.35rem);
+}
+
+.pixel-label {
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.7;
+}
+
+.pixel-num {
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 1.35rem;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.pixel-code {
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border);
+  padding: 0.15rem 0.45rem;
+  color: var(--monad-cyan);
+}
+
+.copy {
+  color: var(--muted);
+  font-size: 1.35rem;
+  line-height: 1.45;
+  max-width: 36rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Chrome                                                                    */
+/* -------------------------------------------------------------------------- */
+
+.pixel-panel {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 2px solid var(--border);
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--monad-purple) 28%, transparent);
+  transition:
+    border-color 120ms steps(2),
+    box-shadow 120ms steps(2),
+    transform 120ms steps(2);
+}
+
+.pixel-panel-strong {
+  background: color-mix(in srgb, var(--surface-2) 94%, transparent);
+  border: 2px solid color-mix(in srgb, var(--monad-purple) 55%, transparent);
+  box-shadow: 4px 4px 0 var(--monad-purple);
+}
+
+.pixel-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 2px solid var(--border);
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--monad-purple) 28%, transparent);
+  transition:
+    border-color 100ms steps(2),
+    box-shadow 100ms steps(2),
+    transform 100ms steps(2);
+}
+
+.pixel-card:hover {
+  border-color: var(--monad-purple);
+  box-shadow: 6px 6px 0 var(--monad-purple);
+  transform: translate(-2px, -2px);
+}
+
+.pixel-card:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--monad-purple);
+}
+
+.pixel-card:hover .game-stage-player {
+  animation: pixel-bob-x 0.9s steps(2) infinite;
+}
+
+.pixel-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.7;
+  background: var(--monad-purple);
+  color: white;
+  border: 2px solid color-mix(in srgb, white 25%, var(--monad-purple));
+  box-shadow: 3px 3px 0 var(--press);
+  padding: 0.75rem 1.1rem;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    transform 80ms steps(2),
+    box-shadow 80ms steps(2),
+    background 80ms steps(2);
+}
+
+.pixel-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.18) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 280ms steps(4);
+  pointer-events: none;
+}
+
+.pixel-btn:hover:not(:disabled)::after {
+  transform: translateX(120%);
+}
+
+.pixel-btn:hover:not(:disabled) {
+  background: #8570ff;
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--press);
+}
+
+.pixel-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--press);
+}
+
+.pixel-btn:disabled,
+.pixel-btn[data-busy="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.pixel-btn[data-busy="true"] {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.pixel-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.7;
+  background: transparent;
+  color: color-mix(in srgb, white 85%, transparent);
+  border: 2px solid var(--border);
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--monad-lilac) 10%, transparent);
+  padding: 0.75rem 1.1rem;
+  cursor: pointer;
+  transition:
+    transform 80ms steps(2),
+    border-color 80ms steps(2),
+    color 80ms steps(2),
+    box-shadow 80ms steps(2);
+}
+
+.pixel-btn-ghost:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--monad-lilac) 50%, transparent);
+  color: white;
+  transform: translate(-1px, -1px);
+}
+
+.pixel-btn-ghost:active:not(:disabled) {
+  transform: translate(2px, 2px);
+}
+
+.pixel-btn-ghost:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.pixel-input {
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 1.25rem;
+  background: rgba(0, 0, 0, 0.45);
+  border: 2px solid var(--border);
+  color: white;
+  padding: 0.55rem 0.75rem;
+  outline: none;
+  transition:
+    border-color 100ms steps(2),
+    box-shadow 100ms steps(2);
+}
+
+.pixel-input:hover:not(:disabled):not(:focus) {
+  border-color: color-mix(in srgb, var(--monad-lilac) 35%, transparent);
+}
+
+.pixel-input:focus {
+  border-color: var(--monad-purple);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--monad-purple) 35%, transparent);
+}
+
+.pixel-chip {
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.7;
+  border: 2px solid var(--border);
+  padding: 0.35rem 0.55rem;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition:
+    transform 80ms steps(2),
+    border-color 80ms steps(2),
+    background 80ms steps(2),
+    box-shadow 80ms steps(2),
+    color 80ms steps(2);
+}
+
+.pixel-chip:hover {
+  border-color: color-mix(in srgb, var(--monad-lilac) 45%, transparent);
+  transform: translate(-1px, -1px);
+}
+
+.pixel-chip:active {
+  transform: translate(1px, 1px);
+}
+
+.pixel-chip-active {
+  border-color: var(--monad-purple);
+  background: var(--accent-soft);
+  color: var(--monad-lilac);
+  box-shadow: 2px 2px 0 var(--monad-purple);
+}
+
+.pixel-nav {
+  position: relative;
+  transition: color 100ms steps(2);
+}
+
+.pixel-nav::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 2px;
+  background: var(--monad-purple);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 120ms steps(3);
+}
+
+.pixel-nav:hover,
+.pixel-nav[data-active="true"] {
+  color: white;
+}
+
+.pixel-nav:hover::after,
+.pixel-nav[data-active="true"]::after {
+  transform: scaleX(1);
+}
+
+/* Hero arcade bezel */
+.arcade-bezel {
+  border: 3px solid color-mix(in srgb, var(--monad-lilac) 28%, transparent);
+  box-shadow:
+    0 0 0 3px #0a0714,
+    8px 8px 0 color-mix(in srgb, var(--monad-purple) 45%, transparent);
+  background: #05030c;
+}
+
+.arcade-bezel-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.65rem;
+  border-bottom: 2px solid color-mix(in srgb, var(--monad-lilac) 16%, transparent);
+  background: #100c1c;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Motion                                                                    */
+/* -------------------------------------------------------------------------- */
+
+@keyframes pixel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pixel-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pixel-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes pixel-dots {
+  0% {
+    content: "";
+  }
+  25% {
+    content: ".";
+  }
+  50% {
+    content: "..";
+  }
+  75%,
+  100% {
+    content: "...";
+  }
+}
+
+@keyframes pixel-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes pixel-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pixel-bob {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, -5px);
+  }
+}
+
+@keyframes pixel-bob-x {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, -5px);
+  }
+}
+
+@keyframes pixel-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(6px);
+  }
+}
+
+.pixel-reveal {
+  animation: pixel-in 260ms steps(4) both;
+}
+
+.pixel-reveal-delay-1 {
+  animation-delay: 50ms;
+}
+.pixel-reveal-delay-2 {
+  animation-delay: 100ms;
+}
+.pixel-reveal-delay-3 {
+  animation-delay: 150ms;
+}
+.pixel-reveal-delay-4 {
+  animation-delay: 200ms;
+}
+.pixel-reveal-delay-5 {
+  animation-delay: 250ms;
+}
+
+.pixel-blink {
+  animation: pixel-blink 1.05s steps(1) infinite;
+}
+
+.pixel-pulse {
+  animation: pixel-pulse 1.2s steps(2) infinite;
+}
+
+.pixel-loader {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pixel-loader::after {
+  content: "";
+  animation: pixel-dots 1.2s steps(1) infinite;
+  color: var(--monad-cyan);
+  min-width: 1.5em;
+}
+
+.pixel-skeleton {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface) 100%, transparent) 20%,
+    color-mix(in srgb, var(--monad-purple) 28%, transparent) 50%,
+    color-mix(in srgb, var(--surface) 100%, transparent) 80%
+  );
+  background-size: 200% 100%;
+  animation: pixel-shimmer 1.4s linear infinite;
+  border: 2px solid var(--border);
+}
+
+.pixel-pop {
+  animation: pixel-pop 200ms steps(3);
+}
+
+.pixel-bob {
+  animation: pixel-bob 1.5s steps(2) infinite;
+}
+
+.game-stage-player {
+  transform: translateX(-50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-reveal,
+  .pixel-blink,
+  .pixel-pulse,
+  .pixel-loader::after,
+  .pixel-skeleton,
+  .pixel-pop,
+  .pixel-bob,
+  .pixel-btn::after,
+  .pixel-card:hover .game-stage-player {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .pixel-card:hover,
+  .pixel-btn:hover:not(:disabled),
+  .pixel-btn-ghost:hover:not(:disabled),
+  .pixel-chip:hover {
+    transform: none;
+  }
+}
+
+[data-rk] button {
+  border-radius: 0 !important;
 }

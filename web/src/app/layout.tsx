@@ -1,21 +1,25 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Press_Start_2P, VT323 } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const pixel = Press_Start_2P({
+  weight: "400",
   subsets: ["latin"],
+  variable: "--font-pixel",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const pixelBody = VT323({
+  weight: "400",
   subsets: ["latin"],
+  variable: "--font-pixel-body",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Proof-of-Play",
-  description: "Prompt a game, launch its token, and let play back its value.",
+  description: "Prompt a game, launch its token, and let play back its value — on Monad.",
 };
 
 export default function RootLayout({
@@ -25,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${pixel.variable} ${pixelBody.variable} antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

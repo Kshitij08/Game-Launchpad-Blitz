@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount, useReadContract, useReadContracts, useBalance } from "wagmi";
 import { parseEther, parseEventLogs, getAddress } from "viem";
@@ -21,6 +21,18 @@ import { useTx, errorText } from "@/lib/hooks/useTx";
 import { mon, tokens } from "@/lib/format";
 import { monadTestnet } from "@/lib/chain";
 import { DegenFeed } from "@/components/DegenFeed";
+import {
+  PixelBadge,
+  PixelButton,
+  PixelInput,
+  PixelLoader,
+  PixelPanel,
+  PopValue,
+  ProgressBar,
+  Reveal,
+  StatBlock,
+} from "@/components/PixelUI";
+import { shell, title } from "@/lib/ui";
 
 type Phase = "idle" | "paying" | "playing" | "signing" | "claiming" | "done";
 
@@ -218,35 +230,41 @@ export default function GamePage() {
   if (game.isError) {
     return (
       <Shell>
-        <p className="text-white/70">Game #{params.id} doesn&apos;t exist. <Link className="underline" href="/">Back to games</Link></p>
+        <p className="text-xl text-[color:var(--muted)]">
+          Game #{params.id} doesn&apos;t exist.{" "}
+          <Link className="text-[color:var(--monad-lilac)] underline" href="/">
+            Back to games
+          </Link>
+        </p>
       </Shell>
     );
   }
 
   const cfg = config.data;
-  const title = cfg?.title ?? name ?? `Game #${params.id}`;
+  const gameTitle = cfg?.title ?? name ?? `Game #${params.id}`;
   const miningPct =
     totalMined !== undefined && supplyCap ? Math.min(100, Number((totalMined * 10000n) / supplyCap) / 100) : 0;
+
+  const playBusy = phase === "paying" || phase === "playing" || phase === "claiming";
 
   return (
     <Shell>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)]">
-        {/* --------------------------------------------------- game column */}
         <section className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-baseline gap-3">
-              <h1 className="text-3xl font-extrabold tracking-tight">{title}</h1>
-              <span className="font-mono text-sm text-white/60">${symbol}</span>
+          <Reveal className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-baseline gap-3">
+              <h1 className={`${title} text-sm sm:text-base`}>{gameTitle}</h1>
+              <span className="pixel-label text-[color:var(--monad-cyan)]">${symbol}</span>
             </div>
-            {cfg?.tagline && <p className="text-white/70">{cfg.tagline}</p>}
+            {cfg?.tagline && <p className="text-xl text-[color:var(--muted)]">{cfg.tagline}</p>}
             {g && g.parentId > 0n && (
-              <Link href={`/game/${g.parentId}`} className="text-sm text-[#a58cff] hover:underline">
+              <Link href={`/game/${g.parentId}`} className="pixel-label pixel-nav text-[color:var(--monad-lilac)]">
                 Remix of game #{g.parentId.toString()}
               </Link>
             )}
-          </div>
+          </Reveal>
 
-          <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
+          <div className="pixel-panel overflow-hidden bg-black">
             {cfg ? (
               <GamePlayer
                 ref={player}
@@ -260,102 +278,97 @@ export default function GamePage() {
                 }}
               />
             ) : (
-              <div className="grid aspect-[2/3] place-items-center text-white/50">
-                {config.isLoading || game.isLoading ? "Loading game…" : "Game config not found."}
+              <div className="grid aspect-[2/3] place-items-center text-xl text-[color:var(--muted)]">
+                {config.isLoading || game.isLoading ? <PixelLoader label="Loading game" /> : "Game config not found."}
               </div>
             )}
           </div>
 
-          <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="font-mono text-sm tabular-nums">
-                Score <span className="text-lg font-bold text-white">{score}</span>
-                {cfg?.scoreLabel && <span className="text-white/50"> {cfg.scoreLabel}</span>}
+          <PixelPanel className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="pixel-label tabular-nums">
+                Score{" "}
+                <PopValue value={score} className="text-[color:var(--monad-lilac)]" />
+                {cfg?.scoreLabel && <span className="text-[color:var(--muted)]"> {cfg.scoreLabel}</span>}
               </div>
               {phase === "signing" && sessionId.current !== null && !msg ? (
-                <span className="text-sm text-white/70">Signing score…</span>
+                <PixelLoader label="Signing score" />
               ) : phase === "signing" && sessionId.current !== null ? (
-                <button className={btn} onClick={() => onGameOver(score)}>Claim score</button>
+                <PixelButton onClick={() => onGameOver(score)}>Claim score</PixelButton>
               ) : (
-                <button
-                  className={btn}
-                  disabled={!address || !cfg || phase === "paying" || phase === "playing" || phase === "claiming"}
-                  onClick={play}
-                >
+                <PixelButton busy={playBusy} disabled={!address || !cfg} onClick={play}>
                   {!address
                     ? "Connect wallet to play"
                     : phase === "paying"
-                      ? "Confirm in wallet…"
+                      ? "Confirm in wallet"
                       : phase === "playing"
-                        ? "Playing…"
+                        ? "Playing"
                         : phase === "claiming"
-                          ? "Claiming…"
+                          ? "Claiming"
                           : `Play · ${mon(entryFee)} MON`}
-                </button>
+                </PixelButton>
               )}
             </div>
-            <p className="text-xs text-white/50">
+            <p className="text-lg text-[color:var(--muted)]">
               70% of every entry fee goes to the vault, so the floor only goes up.
               {!miningClosed && " While mining is open, finishing a run mines tokens: 10 + 1 per point."}
             </p>
             {phase === "done" && lastMined !== null && (
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-emerald-300">
+                <p className="text-lg text-[color:var(--good)]">
                   {lastMined > 0n ? `You mined ${tokens(lastMined)} $${symbol}. LFG.` : "Run recorded on-chain. Mining is closed, so no tokens this time."} Every run pumps the floor.
                 </p>
                 <a
-                  className={btnGhost}
+                  className="pixel-btn-ghost"
                   target="_blank"
                   rel="noreferrer"
                   href={`https://x.com/intent/post?text=${encodeURIComponent(
-                    `${score >= 30 ? "built different:" : score <= 5 ? "got rekt:" : "gm. just scored"} ${score} ${cfg?.scoreLabel ?? "points"} in ${title} ($${symbol}) on @monad_xyz testnet.\n\nevery run pumps an unruggable floor. ape in:`,
+                    `${score >= 30 ? "built different:" : score <= 5 ? "got rekt:" : "gm. just scored"} ${score} ${cfg?.scoreLabel ?? "points"} in ${gameTitle} ($${symbol}) on @monad_xyz testnet.\n\nevery run pumps an unruggable floor. ape in:`,
                   )}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
                 >
                   Share on X
                 </a>
               </div>
             )}
-            {msg && <p className="text-sm text-red-300">{msg}</p>}
-          </div>
+            {msg && <p className="text-lg text-[color:var(--danger)]">{msg}</p>}
+          </PixelPanel>
         </section>
 
-        {/* -------------------------------------------------- stats column */}
         <section className="flex flex-col gap-6">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Big label="Unruggable floor" value={`${mon(floor, 6)} MON`} hint="vault ÷ supply" accent />
-            <Big label="Vault" value={`${mon(vaultBal.data?.value, 4)} MON`} />
-            <Big label="Supply" value={`${tokens(supply, 0)} ${symbol}`} />
-            <Big label="Players" value={players?.toString() ?? "…"} />
-            <Big label="Runs" value={finished?.toString() ?? "…"} />
-            <Big label="Best score" value={bestScore?.toString() ?? "…"} hint={bestPlayer && bestScore ? short(bestPlayer) : undefined} />
-          </div>
+          <Reveal delay={1} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <StatBlock label="Unruggable floor" value={`${mon(floor, 6)} MON`} hint="vault ÷ supply" accent />
+            <StatBlock label="Vault" value={`${mon(vaultBal.data?.value, 4)} MON`} />
+            <StatBlock label="Supply" value={`${tokens(supply, 0)} ${symbol}`} />
+            <StatBlock label="Players" value={players?.toString() ?? "…"} />
+            <StatBlock label="Runs" value={finished?.toString() ?? "…"} />
+            <StatBlock label="Best score" value={bestScore?.toString() ?? "…"} hint={bestPlayer && bestScore ? short(bestPlayer) : undefined} />
+          </Reveal>
 
           {g && (
             <DegenFeed sessions={g.sessions} curve={g.curve} vault={g.vault} symbol={symbol} creator={g.creator} />
           )}
 
-          {/* Mining / trading */}
-          <Panel title={miningClosed ? "Trading is open" : "Play-mining is open"}>
+          <MarketPanel heading={miningClosed ? "Trading is open" : "Play-mining is open"}>
             {!miningClosed ? (
               <>
-                <p className="text-sm text-white/70">
+                <p className="text-xl text-[color:var(--muted)]">
                   Tokens can only be earned by playing until {tokens(supplyCap, 0)} {symbol} are mined. Then the curve opens for buyers.
                 </p>
-                <Bar pct={miningPct} />
-                <p className="font-mono text-xs text-white/60 tabular-nums">
+                <ProgressBar pct={miningPct} />
+                <p className="pixel-label tabular-nums text-[color:var(--muted)]">
                   {tokens(totalMined, 0)} / {tokens(supplyCap, 0)} mined · you: {tokens(myMined, 0)} / {tokens(walletCap, 0)}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-sm text-white/70">
+                <p className="text-xl text-[color:var(--muted)]">
                   Buy price is {mon(spot, 6)} MON per {symbol} and never drops below the floor. Every MON spent goes into the vault.
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input id="buy-amount" className={input} value={buyAmt} onChange={(e) => setBuyAmt(e.target.value)} inputMode="decimal" />
-                  <span className="text-sm text-white/60">{symbol}</span>
-                  <button
-                    className={btn}
+                  <PixelInput id="buy-amount" className="w-32" value={buyAmt} onChange={(e) => setBuyAmt(e.target.value)} inputMode="decimal" />
+                  <span className="pixel-label text-[color:var(--muted)]">{symbol}</span>
+                  <PixelButton
+                    busy={busy === "Buy"}
                     disabled={!address || !buyUnits || !quote.data || !!busy}
                     onClick={() =>
                       act("Buy", () =>
@@ -363,125 +376,99 @@ export default function GamePage() {
                       )
                     }
                   >
-                    {busy === "Buy" ? "Buying…" : `Buy for ~${mon(quote.data, 4)} MON`}
-                  </button>
+                    {busy === "Buy" ? "Buying" : `Buy for ~${mon(quote.data, 4)} MON`}
+                  </PixelButton>
                 </div>
               </>
             )}
-          </Panel>
+          </MarketPanel>
 
-          {/* Redeem */}
-          <Panel title="Redeem from the vault">
-            <p className="text-sm text-white/70">
+          <MarketPanel heading="Redeem from the vault">
+            <p className="text-xl text-[color:var(--muted)]">
               Burn {symbol} and get your share of the vault, at the floor price. You hold {tokens(myBalance)} {symbol}.
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <input id="redeem-amount" className={input} placeholder="Amount" value={redeemAmt} onChange={(e) => setRedeemAmt(e.target.value)} inputMode="decimal" />
-              <button className={btnGhost} disabled={!myBalance} onClick={() => setRedeemAmt(trimNum(myBalance))}>Max</button>
-              <button
-                className={btn}
+              <PixelInput id="redeem-amount" className="w-32" placeholder="Amount" value={redeemAmt} onChange={(e) => setRedeemAmt(e.target.value)} inputMode="decimal" />
+              <PixelButton variant="ghost" disabled={!myBalance} onClick={() => setRedeemAmt(trimNum(myBalance))}>
+                Max
+              </PixelButton>
+              <PixelButton
+                busy={busy === "Redeem"}
                 disabled={!address || !redeemUnits || !!busy || (myBalance !== undefined && redeemUnits! > myBalance)}
                 onClick={() => act("Redeem", () => send({ address: g!.vault, abi: treasuryVaultAbi, functionName: "redeem", args: [redeemUnits!] }))}
               >
-                {busy === "Redeem" ? "Redeeming…" : `Redeem for ${mon(preview.data, 6)} MON`}
-              </button>
+                {busy === "Redeem" ? "Redeeming" : `Redeem for ${mon(preview.data, 6)} MON`}
+              </PixelButton>
             </div>
-          </Panel>
+          </MarketPanel>
 
-          {/* Creator */}
-          <Panel title="Creator unlocks">
-            <p className="text-sm text-white/70">
+          <MarketPanel heading="Creator unlocks">
+            <p className="text-xl text-[color:var(--muted)]">
               The creator&apos;s {tokens(creatorAlloc, 0)} {symbol} unlock 25% at a time as real players arrive.
             </p>
             <div className="flex flex-wrap gap-2">
               {milestones?.map((m, i) => {
                 const hit = players !== undefined && players >= m;
                 return (
-                  <span key={i} className={`rounded-full px-3 py-1 font-mono text-xs ${hit ? "bg-emerald-400/90 text-black" : "bg-white/10 text-white/60"}`}>
+                  <PixelBadge key={i} tone={hit ? "trading" : "default"}>
                     {m.toString()} players
-                  </span>
+                  </PixelBadge>
                 );
               })}
             </div>
-            <p className="font-mono text-xs text-white/60 tabular-nums">
+            <p className="pixel-label tabular-nums text-[color:var(--muted)]">
               Unlocked {tokens(unlocked, 0)} · claimed {tokens(claimed, 0)}
             </p>
             {isCreator && (
               <div className="flex flex-wrap gap-2">
-                <button
-                  className={btn}
+                <PixelButton
+                  busy={busy === "Claim"}
                   disabled={!!busy || unlocked === undefined || claimed === undefined || unlocked <= claimed}
                   onClick={() => act("Claim", () => send({ address: g!.sessions, abi: sessionManagerAbi, functionName: "claimCreator" }))}
                 >
-                  {busy === "Claim" ? "Claiming…" : "Claim unlocked tokens"}
-                </button>
+                  {busy === "Claim" ? "Claiming" : "Claim unlocked tokens"}
+                </PixelButton>
                 {!miningClosed && (
-                  <button
-                    className={btnGhost}
+                  <PixelButton
+                    variant="ghost"
+                    busy={busy === "Close mining"}
                     disabled={!!busy}
                     onClick={() => act("Close mining", () => send({ address: g!.sessions, abi: sessionManagerAbi, functionName: "closeMining" }))}
                   >
-                    {busy === "Close mining" ? "Closing…" : "End mining and open trading"}
-                  </button>
+                    {busy === "Close mining" ? "Closing" : "End mining and open trading"}
+                  </PixelButton>
                 )}
               </div>
             )}
-          </Panel>
+          </MarketPanel>
 
           {cfg && (
-            <Link href={`/create?remix=${params.id}`} className="text-sm text-[#a58cff] hover:underline">
+            <Link href={`/create?remix=${params.id}`} className="pixel-label pixel-nav w-fit text-[color:var(--monad-lilac)]">
               Remix this game with a new prompt →
             </Link>
           )}
-          {marketMsg && <p className="text-sm text-white/80">{marketMsg}</p>}
+          {marketMsg && <p className="text-xl text-white/80">{marketMsg}</p>}
         </section>
       </div>
     </Shell>
   );
 }
 
-// ------------------------------------------------------------------ bits
-
-const btn =
-  "rounded-lg bg-[#836ef9] px-4 py-2 text-sm font-semibold text-white hover:bg-[#9583ff] disabled:cursor-not-allowed disabled:opacity-50";
-const btnGhost =
-  "rounded-lg border border-white/20 px-3 py-2 text-sm text-white/80 hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-50";
-const input =
-  "w-32 rounded-lg border border-white/15 bg-black/40 px-3 py-2 font-mono text-sm text-white outline-none focus:border-[#a58cff]";
-
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#0d0b17] text-white">
+    <div className={shell}>
       <Header />
       <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </div>
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function MarketPanel({ heading, children }: { heading: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-      <h2 className="font-bold">{title}</h2>
+    <PixelPanel className="flex flex-col gap-3">
+      <h2 className={`${title} text-[11px]`}>{heading}</h2>
       {children}
-    </div>
-  );
-}
-
-function Big({ label, value, hint, accent }: { label: string; value: string; hint?: string; accent?: boolean }) {
-  return (
-    <div className={`flex flex-col gap-1 rounded-xl border p-3 ${accent ? "border-[#a58cff]/60 bg-[#836ef9]/10" : "border-white/10 bg-white/[0.03]"}`}>
-      <span className="text-xs text-white/60">{label}</span>
-      <span className="font-mono text-lg font-bold tabular-nums">{value}</span>
-      {hint && <span className="font-mono text-[11px] text-white/40">{hint}</span>}
-    </div>
-  );
-}
-
-function Bar({ pct }: { pct: number }) {
-  return (
-    <div className="h-2 overflow-hidden rounded-full bg-white/10">
-      <div className="h-full bg-amber-400 transition-all" style={{ width: `${pct}%` }} />
-    </div>
+    </PixelPanel>
   );
 }
 
