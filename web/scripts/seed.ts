@@ -97,7 +97,7 @@ async function main() {
             address: g.sessions,
             abi: sessionManagerAbi,
             functionName: "endSession",
-            args: [started.args.sessionId, BigInt(score), data.signature],
+            args: [started.args.sessionId, BigInt(data.score), data.signature],
           }),
         );
         const [ended] = parseEventLogs({ abi: sessionManagerAbi, logs: r2.logs, eventName: "SessionEnded" });

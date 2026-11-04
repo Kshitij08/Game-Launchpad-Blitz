@@ -36,12 +36,12 @@ async function main() {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ sessions: g.sessions, player: account.address, sessionId: started.args.sessionId.toString(), score }),
   });
-  const { signature, error } = await res.json();
+  const { signature, error, score: signed } = await res.json();
   if (!signature) throw new Error(error);
   await pub.waitForTransactionReceipt({
-    hash: await wallet.writeContract({ address: g.sessions, abi: sessionManagerAbi, functionName: "endSession", args: [started.args.sessionId, BigInt(score), signature] }),
+    hash: await wallet.writeContract({ address: g.sessions, abi: sessionManagerAbi, functionName: "endSession", args: [started.args.sessionId, BigInt(signed), signature] }),
   });
-  console.log(`Played game #${id}: session ${started.args.sessionId}, score ${score}`);
+  console.log(`Played game #${id}: session ${started.args.sessionId}, score ${signed} (asked ${score})`);
 }
 
 main().catch((e) => {

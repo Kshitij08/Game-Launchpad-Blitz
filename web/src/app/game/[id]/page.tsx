@@ -163,7 +163,7 @@ export default function GamePage() {
         address: g.sessions,
         abi: sessionManagerAbi,
         functionName: "endSession",
-        args: [sessionId.current, BigInt(finalScore), data.signature],
+        args: [sessionId.current, BigInt(data.score), data.signature],
       });
       const [ev] = parseEventLogs({ abi: sessionManagerAbi, logs: receipt.logs, eventName: "SessionEnded" });
       setLastMined(ev?.args.mined ?? 0n);
