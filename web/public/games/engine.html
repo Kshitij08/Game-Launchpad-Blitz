@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Proof-of-Play game</title>
+    <!--
+      Game runtime for Proof-of-Play. Loaded by <GamePlayer> inside
+      <iframe sandbox="allow-scripts"> (opaque origin, no storage/cookies).
+      Kept as a static page on purpose: the Next root layout mounts wagmi /
+      RainbowKit, which touch localStorage and would throw in the sandbox.
+      Protocol: see src/lib/game-config.ts (ParentToGame / GameToParent).
+    -->
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+      body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+      #game { width: 100%; height: 100%; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <script src="phaser.min.js"></script>
+    <script src="engine.js"></script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+node_modules/
+.env
+.env.local
+.env*.local
+
+# contracts
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/coverage/
+contracts/ignition/deployments/chain-31337/
+
+# web
+web/.next/
+web/out/
+web/next-env.d.ts
+
+.DS_Store
+*.log
