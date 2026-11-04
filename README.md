@@ -1,6 +1,9 @@
 # Proof-of-Play
 
-Prompt a game, launch its token, and let play back its value. Built for Monad Blitz Mumbai.
+Prompt a game. Launch a coin. Every run pumps an unruggable floor. Built for Monad Blitz Mumbai.
+
+**Live:** https://proof-of-play-wheat.vercel.app (Monad testnet) ·
+**GameFactory:** [`0xc25e…e3eb`](https://testnet.monadexplorer.com/contracts/full_match/10143/0xc25e90f474f7c4f69ddfac66e4a91ff3f9e6e3eb/)
 
 - Early tokens can only be mined by playing.
 - Every paid play fills a vault that sets a floor price (`floor = vault ÷ supply`).
