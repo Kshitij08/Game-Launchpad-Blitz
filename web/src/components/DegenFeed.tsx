@@ -130,21 +130,37 @@ export function DegenFeed({
   }, [client, sessions, curve, vault, creator]);
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-white/10 bg-black/40 p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold">Degen feed</h2>
-        <span className="flex items-center gap-1.5 font-mono text-xs text-emerald-300">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" /> live
+    <div className="pixel-panel flex flex-col gap-2 bg-black/45 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="pixel-title text-[11px]">Degen feed</h2>
+        <span className="pixel-label flex items-center gap-1.5 text-[color:var(--good)]">
+          <span className="pixel-pulse inline-block h-2 w-2 bg-[color:var(--good)]" /> live
         </span>
       </div>
-      <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto font-mono text-xs">
+      <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto text-lg">
         {items.length === 0 && (
-          <li className="text-white/50">{loading ? "Reading the chain…" : "Quiet in here. Be the first to ape in."}</li>
+          <li className="text-[color:var(--muted)]">
+            {loading ? <span className="pixel-loader">Reading the chain</span> : "Quiet in here. Be the first to ape in."}
+          </li>
         )}
-        {items.map((i) => (
-          <li key={i.key} className="flex gap-2 leading-relaxed">
-            <span className="shrink-0 text-[#a58cff]">{short(i.who)}</span>
-            <span className={i.tone === "bad" ? "text-red-300" : i.tone === "hype" ? "text-emerald-300" : i.tone === "good" ? "text-white/85" : "text-white/60"}>
+        {items.map((i, idx) => (
+          <li
+            key={i.key}
+            className="pixel-reveal flex gap-2 leading-relaxed"
+            style={{ animationDelay: `${Math.min(idx, 8) * 40}ms` }}
+          >
+            <span className="shrink-0 text-[color:var(--monad-lilac)]">{short(i.who)}</span>
+            <span
+              className={
+                i.tone === "bad"
+                  ? "text-[color:var(--danger)]"
+                  : i.tone === "hype"
+                    ? "text-[color:var(--good)]"
+                    : i.tone === "good"
+                      ? "text-white/85"
+                      : "text-[color:var(--muted)]"
+              }
+            >
               {i.text}
             </span>
           </li>

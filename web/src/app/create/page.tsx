@@ -12,6 +12,17 @@ import { useTx, errorText } from "@/lib/hooks/useTx";
 import { SAMPLE_CONFIGS } from "@/lib/sample-configs";
 import { TEMPLATES, TEMPLATE_INFO, type GameConfig, type TemplateId } from "@/lib/game-config";
 import { AssetCustomizer } from "@/components/AssetCustomizer";
+import {
+  PixelButton,
+  PixelChip,
+  PixelInput,
+  PixelLoader,
+  PixelPanel,
+  PixelTextarea,
+  PopValue,
+  Reveal,
+} from "@/components/PixelUI";
+import { shell, title } from "@/lib/ui";
 
 export default function CreatePage() {
   return (
@@ -140,76 +151,86 @@ function Create() {
   const unchangedRemix = isRemix && !dirty && draft?.hash === base?.hash;
 
   return (
-    <div className="min-h-screen bg-[#0d0b17] text-white">
+    <div className={shell}>
       <Header />
       <main className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <section className="flex min-w-0 flex-col gap-5">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-3xl font-extrabold tracking-tight">{isRemix ? `Remix game #${remixId}` : "Create a game"}</h1>
-            <p className="text-white/70">
+          <Reveal className="flex flex-col gap-2">
+            <p className="pixel-label text-[color:var(--monad-cyan)]">{isRemix ? "remix mode" : "new cartridge"}</p>
+            <h1 className={`${title} text-sm sm:text-base`}>{isRemix ? `Remix game #${remixId}` : "Create a game"}</h1>
+            <p className="copy">
               {isRemix
                 ? "Describe what to change. 10% of every play fee in your remix flows to the original game's vault."
                 : "Describe your game in a sentence. Claude builds it on a 2D arcade template in about 20 seconds."}
             </p>
-          </div>
+          </Reveal>
 
-          <label htmlFor="prompt" className="sr-only">Game prompt</label>
-          <textarea
-            id="prompt"
-            rows={3}
-            maxLength={400}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder={isRemix ? "e.g. season 2: underwater, jellyfish instead of rocks, a bit faster" : "e.g. a cat dodging cucumbers in a neon kitchen"}
-            className="w-full rounded-xl border border-white/15 bg-black/40 p-4 text-base outline-none focus:border-[#a58cff]"
-          />
+          <Reveal delay={1}>
+            <label htmlFor="prompt" className="sr-only">Game prompt</label>
+            <PixelTextarea
+              id="prompt"
+              rows={3}
+              maxLength={400}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={isRemix ? "e.g. season 2: underwater, jellyfish instead of rocks, a bit faster" : "e.g. a cat dodging cucumbers in a neon kitchen"}
+              className="w-full min-h-[6rem] text-xl"
+            />
+          </Reveal>
 
           {!isRemix && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-white/60">Style:</span>
+            <Reveal delay={2} className="flex flex-wrap items-center gap-2">
+              <span className="pixel-label text-[color:var(--muted)]">Style</span>
               {(["", ...TEMPLATES] as const).map((t) => (
-                <button
-                  key={t || "auto"}
-                  onClick={() => setTemplate(t)}
-                  className={`rounded-full border px-3 py-1 ${template === t ? "border-[#a58cff] bg-[#836ef9]/20" : "border-white/15 text-white/70"}`}
-                >
+                <PixelChip key={t || "auto"} active={template === t} onClick={() => setTemplate(t)}>
                   {t === "" ? "Let Claude pick" : TEMPLATE_INFO[t].label}
-                </button>
+                </PixelChip>
               ))}
-            </div>
+            </Reveal>
           )}
 
           {!isRemix && !draft && (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm text-white/60">Need alpha? Try one:</span>
+            <Reveal delay={3} className="flex flex-col gap-2">
+              <span className="pixel-label text-[color:var(--muted)]">Need alpha? Try one</span>
               <div className="flex flex-wrap gap-2">
                 {[...MEME_PROMPTS, ...SAMPLE_CONFIGS.map((s) => s.prompt)].map((p) => (
-                  <button key={p} onClick={() => setPrompt(p)} className="rounded-lg border border-white/10 px-3 py-1.5 text-left text-sm text-white/80 hover:border-[#a58cff]/60">
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPrompt(p)}
+                    className="pixel-panel max-w-full px-3 py-2 text-left text-lg text-white/85 hover:border-[color:var(--monad-purple)]"
+                  >
                     {p}
                   </button>
                 ))}
               </div>
-            </div>
+            </Reveal>
           )}
 
           <div className="flex flex-wrap gap-3">
             {(isRemix || draft) && (
-              <button className={btn} disabled={generating || prompt.trim().length < 3 || !draft} onClick={() => generate("edit")}>
-                {generating ? `Changing… ${elapsed}s` : isRemix ? "Apply change" : "Change this game"}
-              </button>
+              <PixelButton busy={generating} disabled={prompt.trim().length < 3 || !draft} onClick={() => generate("edit")}>
+                {generating ? `Changing ${elapsed}s` : isRemix ? "Apply change" : "Change this game"}
+              </PixelButton>
             )}
             {!isRemix && (
-              <button className={draft ? btnGhost : btn} disabled={generating || prompt.trim().length < 3} onClick={() => generate("new")}>
-                {generating ? `Generating… ${elapsed}s` : draft ? "Start over from prompt" : "Generate game"}
-              </button>
+              <PixelButton
+                variant={draft ? "ghost" : "solid"}
+                busy={generating}
+                disabled={prompt.trim().length < 3}
+                onClick={() => generate("new")}
+              >
+                {generating ? `Generating ${elapsed}s` : draft ? "Start over from prompt" : "Generate game"}
+              </PixelButton>
             )}
           </div>
           {generating && (
-            <p className="text-sm text-white/60">
-              Claude is designing the rules, tuning the difficulty and drawing the sprites and effects. This takes about 15–25 seconds.
-            </p>
+            <div className="flex flex-col gap-1">
+              <PixelLoader label="Claude is drawing sprites" />
+              <p className="text-lg text-[color:var(--muted)]">Rules, difficulty, and effects usually take 15–25 seconds.</p>
+            </div>
           )}
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {error && <p className="text-lg text-[color:var(--danger)]">{error}</p>}
 
           {draft && original && (
             <AssetCustomizer
@@ -223,30 +244,42 @@ function Create() {
           )}
 
           {draft && (
-            <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <h2 className="font-bold">Launch</h2>
-              <p className="text-sm text-white/70">
+            <PixelPanel className="flex flex-col gap-4">
+              <h2 className={`${title} text-[11px]`}>Launch</h2>
+              <p className="text-xl text-[color:var(--muted)]">
                 Launching deploys the token, its vault and its play contract on Monad testnet (about 0.3 MON in gas). Early tokens can only be mined by playing.
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_140px]">
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-white/60">Token name</span>
-                  <input id="token-name" className={input} value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
+                <label className="flex flex-col gap-1">
+                  <span className="pixel-label text-[color:var(--muted)]">Token name</span>
+                  <PixelInput id="token-name" className="w-full" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
                 </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-white/60">Ticker</span>
-                  <input id="token-symbol" className={`${input} uppercase`} value={symbol} maxLength={8} onChange={(e) => setSymbol(e.target.value.replace(/[^A-Za-z0-9]/g, ""))} />
+                <label className="flex flex-col gap-1">
+                  <span className="pixel-label text-[color:var(--muted)]">Ticker</span>
+                  <PixelInput
+                    id="token-symbol"
+                    className="w-full uppercase"
+                    value={symbol}
+                    maxLength={8}
+                    onChange={(e) => setSymbol(e.target.value.replace(/[^A-Za-z0-9]/g, ""))}
+                  />
                 </label>
               </div>
-              <button className={btn} disabled={!canLaunch || unchangedRemix} onClick={launch}>
-                {!address ? "Connect wallet to launch" : launching ? "Launching…" : unchangedRemix ? "Change something first" : `Launch $${symbol.toUpperCase() || "…"}`}
-              </button>
-            </div>
+              <PixelButton busy={launching} disabled={!canLaunch || unchangedRemix} onClick={launch}>
+                {!address
+                  ? "Connect wallet to launch"
+                  : launching
+                    ? "Launching"
+                    : unchangedRemix
+                      ? "Change something first"
+                      : `Launch $${symbol.toUpperCase() || "…"}`}
+              </PixelButton>
+            </PixelPanel>
           )}
         </section>
 
         <aside className="flex flex-col gap-3">
-          <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
+          <div className="pixel-panel overflow-hidden bg-black">
             {draft ? (
               <GamePlayer
                 ref={player}
@@ -255,15 +288,21 @@ function Create() {
                 onGameOver={(s) => setTestScore(s)}
               />
             ) : (
-              <div className="grid aspect-[2/3] place-items-center p-8 text-center text-white/40">
-                {generating ? "Building your game…" : "Your game preview appears here."}
+              <div className="grid aspect-[2/3] place-items-center gap-3 p-8 text-center text-xl text-[color:var(--muted)]">
+                {generating ? <PixelLoader label="Building preview" /> : "Your game preview appears here."}
               </div>
             )}
           </div>
           {draft && (
             <div className="flex items-center justify-between gap-2">
-              <button className={btnGhost} onClick={() => player.current?.start()}>Test play (free)</button>
-              {testScore !== null && <span className="font-mono text-sm text-white/70">Last test: {testScore}</span>}
+              <PixelButton variant="ghost" onClick={() => player.current?.start()}>
+                Test play (free)
+              </PixelButton>
+              {testScore !== null && (
+                <span className="pixel-label text-[color:var(--muted)]">
+                  Last test: <PopValue value={testScore} className="text-[color:var(--monad-lilac)]" />
+                </span>
+              )}
             </div>
           )}
         </aside>
@@ -285,10 +324,3 @@ function tickerFrom(title: string) {
   const t = words.length > 1 ? words.map((w) => w[0]).join("") : words[0] ?? "GAME";
   return (t.length >= 3 ? t : (words[0] ?? "GAME")).slice(0, 5);
 }
-
-const btn =
-  "rounded-lg bg-[#836ef9] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#9583ff] disabled:cursor-not-allowed disabled:opacity-50";
-const btnGhost =
-  "rounded-lg border border-white/20 px-4 py-2.5 text-sm text-white/80 hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-50";
-const input =
-  "rounded-lg border border-white/15 bg-black/40 px-3 py-2 font-mono text-sm text-white outline-none focus:border-[#a58cff]";
