@@ -9,7 +9,8 @@
       <iframe sandbox="allow-scripts"> (opaque origin, no storage/cookies).
       Kept as a static page on purpose: the Next root layout mounts wagmi /
       RainbowKit, which touch localStorage and would throw in the sandbox.
-      Protocol: see src/lib/game-config.ts (ParentToGame / GameToParent).
+      Protocol: see src/lib/game-config.ts. Template API: src/lib/games/TEMPLATE_API.md.
+      A missing or broken template file only disables that template.
     -->
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
@@ -21,6 +22,10 @@
   <body>
     <div id="game"></div>
     <script src="phaser.min.js"></script>
-    <script src="engine.js"></script>
+    <script src="core.js"></script>
+    <script src="templates/flappy.js"></script>
+    <script src="templates/runner.js"></script>
+    <script src="templates/shooter.js"></script>
+    <script src="templates/dodge.js"></script>
   </body>
 </html>

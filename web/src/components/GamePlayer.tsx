@@ -18,14 +18,72 @@
  * Changing `config` (deep compare via JSON) re-sends "load" and returns to the
  * title screen; with autoStart the new config starts immediately.
  *
+ * Assets: every "asset:0x…" ref in the config (collectAssetRefs) is fetched from
+ * GET /api/asset/<0x hash>, turned into a data: URL (cached in memory for the
+ * page lifetime) and sent with "load" as `assets`, so the opaque-origin iframe
+ * never fetches. A failed fetch is skipped; the engine falls back to a block
+ * sprite / synth sound for that slot.
+ *
+ * Audio: `muted` sends {type:"mute"} on change and after every load.
+ *
  * Sizing: by default the wrapper is a 2:3 portrait box, full width up to 480px.
  * Pass className to override (the iframe always fills the wrapper; the game
  * letterboxes itself with Phaser Scale.FIT).
  */
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { gameConfigSchema, type GameConfig, type ParentToGame } from "@/lib/game-config";
+import {
+  assetIdOf,
+  collectAssetRefs,
+  gameConfigSchema,
+  type AssetRef,
+  type GameConfig,
+  type ParentToGame,
+} from "@/lib/game-config";
 import { GAME_ENGINE_URL, isGameMessage } from "@/lib/games";
+
+// ref -> data: URL, shared by every player on the page.
+const assetCache = new Map<AssetRef, Promise<string | null>>();
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+function fetchAsset(ref: AssetRef): Promise<string | null> {
+  let p = assetCache.get(ref);
+  if (!p) {
+    p = fetch(`/api/asset/${assetIdOf(ref)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then(blobToDataUrl)
+      .catch((e) => {
+        console.warn(`[GamePlayer] asset ${ref} failed to load:`, e);
+        assetCache.delete(ref); // allow a retry on the next load
+        return null;
+      });
+    assetCache.set(ref, p);
+  }
+  return p;
+}
+
+/** Fetch every asset the config references. Missing ones are left out. */
+export async function loadConfigAssets(config: GameConfig): Promise<Record<string, string>> {
+  const refs = collectAssetRefs(config);
+  const urls = await Promise.all(refs.map(fetchAsset));
+  const out: Record<string, string> = {};
+  refs.forEach((ref, i) => {
+    const u = urls[i];
+    if (u) out[ref] = u;
+  });
+  return out;
+}
 
 export interface GamePlayerHandle {
   /** Start a run (queued until the config is loaded). */
@@ -44,11 +102,13 @@ export interface GamePlayerProps {
   onLoaded?(): void;
   /** Send "start" automatically every time a config finishes loading. */
   autoStart?: boolean;
+  /** Mute all game audio (sfx + music). */
+  muted?: boolean;
   className?: string;
 }
 
 export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function GamePlayer(
-  { config, onScore, onGameOver, onError, onLoaded, autoStart = false, className },
+  { config, onScore, onGameOver, onError, onLoaded, autoStart = false, muted = false, className },
   ref,
 ) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -56,9 +116,9 @@ export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function
   const [error, setError] = useState<string | null>(null);
 
   // Latest props in refs so the message listener never goes stale.
-  const cb = useRef({ onScore, onGameOver, onError, onLoaded, autoStart });
+  const cb = useRef({ onScore, onGameOver, onError, onLoaded, autoStart, muted });
   useEffect(() => {
-    cb.current = { onScore, onGameOver, onError, onLoaded, autoStart };
+    cb.current = { onScore, onGameOver, onError, onLoaded, autoStart, muted };
   });
 
   const configKey = useMemo(() => JSON.stringify(config), [config]);
@@ -89,7 +149,11 @@ export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function
       return;
     }
     setError(null);
-    send({ source: "pop", type: "load", config: parsed.data });
+    const key = configKey;
+    loadConfigAssets(parsed.data).then((assets) => {
+      if (st.current.sentKey !== key) return; // config changed while fetching
+      send({ source: "pop", type: "load", config: parsed.data, assets });
+    });
   }, [configKey, send, fail]);
 
   const sendLoadRef = useRef(sendLoad);
@@ -111,6 +175,7 @@ export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function
         case "loaded":
           st.current.loaded = true;
           setLoaded(true);
+          send({ source: "pop", type: "mute", muted: !!cb.current.muted });
           cb.current.onLoaded?.();
           if (st.current.wantStart || cb.current.autoStart) {
             st.current.wantStart = false;
@@ -136,6 +201,10 @@ export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function
   useEffect(() => {
     if (st.current.booted && st.current.sentKey !== configKey) sendLoad();
   }, [configKey, sendLoad]);
+
+  useEffect(() => {
+    if (st.current.booted) send({ source: "pop", type: "mute", muted });
+  }, [muted, send]);
 
   useImperativeHandle(
     ref,

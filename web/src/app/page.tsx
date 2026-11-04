@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Header } from "@/components/Header";
 import { useGames, type GameSummary } from "@/lib/hooks/useGames";
 import { mon } from "@/lib/format";
+import { spriteSrc } from "@/components/AssetCustomizer";
 
 export default function Explore() {
   const { games, isLoading, error } = useGames();
@@ -63,7 +64,7 @@ function GameCard({ g }: { g: GameSummary }) {
           <img
             alt=""
             className="absolute bottom-4 left-1/2 h-16 w-16 -translate-x-1/2 transition group-hover:scale-110"
-            src={`data:image/svg+xml;utf8,${encodeURIComponent(g.config.sprites.player)}`}
+            src={spriteSrc(g.config.sprites.player)}
           />
         )}
         <span

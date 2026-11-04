@@ -1,6 +1,6 @@
 // Server-only module: calls Claude to turn a prompt into a GameConfig.
 import Anthropic from "@anthropic-ai/sdk";
-import { gameConfigSchema, TEMPLATES, type GameConfig, type TemplateId } from "@/lib/game-config";
+import { gameConfigSchema, TEMPLATES, VFX_STYLES, VFX_SLOTS, isAssetRef, type GameConfig, type TemplateId } from "@/lib/game-config";
 import { SAMPLE_CONFIGS } from "./sample-configs";
 
 const MODEL = "claude-sonnet-5-5";
@@ -41,10 +41,11 @@ const OUTPUT_SCHEMA = obj({
     text: str("#rrggbb HUD text, high contrast vs sky"),
   }),
   sprites: obj({
-    player: str("inline SVG, ~48x48, facing right"),
-    obstacle: str("inline SVG; flappy: tall pipe ~72x560 with its cap at the TOP; runner: ground obstacle ~48x64"),
+    player: str("inline SVG ~48x48 (flappy/runner: facing right; shooter/dodge: facing up), or keep an existing 'asset:0x..' value unchanged"),
+    obstacle: str("inline SVG; flappy: tall pipe ~72x560 with its cap at the TOP; runner: ground obstacle ~48x64; shooter: enemy ~48x48 facing down; dodge: falling hazard ~40x40"),
     collectible: str("inline SVG ~32x32"),
     decor: str("inline SVG background element ~128x64"),
+    projectile: str("inline SVG bullet ~8x20 pointing up (only used by shooter; for other templates give a tiny placeholder <svg>)"),
   }),
   physics: obj({
     gravity: num("300..2500 px/s^2"),
@@ -53,7 +54,7 @@ const OUTPUT_SCHEMA = obj({
     speedRampPerSec: num("0..15"),
   }),
   obstacles: obj({
-    spawnIntervalMs: num("700..2600"),
+    spawnIntervalMs: num("300..2600"),
     gapSize: num("110..280 (flappy vertical gap; runner ignores)"),
     variance: num("0..1"),
   }),
@@ -62,19 +63,39 @@ const OUTPUT_SCHEMA = obj({
     collectibleChance: num("0..1"),
     pointsPerCollectible: { type: "integer", description: "0..25" },
   }),
+  tuning: obj({
+    playerSpeed: num("200..900 px/s sideways movement (shooter, dodge)"),
+    fireRateMs: num("120..800 ms between shots (shooter)"),
+    enemyHp: { type: "integer", description: "1..5 hits per enemy (shooter)" },
+  }),
+  vfx: obj(
+    Object.fromEntries(
+      VFX_SLOTS.map((slot) => [
+        slot,
+        obj({
+          style: { type: "string", enum: [...VFX_STYLES] },
+          colors: { type: "array", items: str("#rrggbb"), description: "1-3 colours" },
+        }),
+      ]),
+    ),
+  ),
 });
 
 /* ------------------------------------------------------------------ */
 /* Prompt                                                              */
 /* ------------------------------------------------------------------ */
 // Few-shot examples: one per template, from the hand-made demo samples.
-const EXAMPLES = SAMPLE_CONFIGS.filter((x) => x.id === "orbit-hopper" || x.id === "jungle-dash");
+const EXAMPLES = TEMPLATES.map((t) => SAMPLE_CONFIGS.find((x) => x.config.template === t)).filter(
+  (x): x is (typeof SAMPLE_CONFIGS)[number] => !!x,
+);
 
 const SYSTEM = `You design tiny 2D arcade games for "Proof-of-Play". You output ONE JSON game config that a pre-built Phaser template renders. You never write game code, only the config.
 
 TEMPLATES
 - "flappy": player hovers in the air; each tap/click applies an upward impulse (jumpVelocity) against gravity. Obstacles are pairs of vertical columns (top + bottom) with a vertical gap (gapSize) the player flies through. Best for anything that flies, swims, floats, bounces through gaps.
-- "runner": player runs along the ground; tap = jump. Obstacles spawn on the ground and must be jumped over; gapSize is ignored. Best for anything that runs, dodges, skates, drives, hops over things.
+- "runner": player runs along the ground; tap = jump. Obstacles spawn on the ground and must be jumped over; gapSize is ignored. Best for anything that runs, skates, drives, hops over things.
+- "shooter": vertical shooter. Player at the bottom moves sideways (drag/arrows) and auto-fires projectiles upward; enemies (the obstacle sprite) descend from the top and are destroyed for points. Best for space battles, defending, blasting, zapping anything.
+- "dodge": player at the bottom moves left/right; hazards (the obstacle sprite) fall from the sky and collectibles fall too. Survive and catch. Best for "avoid falling X", "catch Y", rain/meteor/kitchen chaos themes.
 Pick the template that best fits the player's prompt unless one is mandated.
 
 FIELDS AND RANGES (stay inside them)
@@ -82,19 +103,25 @@ FIELDS AND RANGES (stay inside them)
 - title 2-40 chars, catchy. tagline <= 90 chars. scoreLabel <= 16 chars, the plural thing being counted (e.g. "cucumbers").
 - palette: 6-digit hex colours. sky -> skyBottom is a vertical gradient. text must have strong contrast against sky AND skyBottom (WCAG >= 4.5:1). ground must be distinguishable from skyBottom. Obstacles and player must stand out clearly against the background.
 - physics: gravity 300-2500, jumpVelocity 250-1000, scrollSpeed 120-600, speedRampPerSec 0-15.
-- obstacles: spawnIntervalMs 700-2600, gapSize 110-280, variance 0-1.
+- obstacles: spawnIntervalMs 300-2600, gapSize 110-280, variance 0-1.
+- tuning: playerSpeed 200-900, fireRateMs 120-800, enemyHp int 1-5 (only shooter/dodge use these; give sensible values anyway).
+- vfx: one particle preset per slot (trail, collect, hit, score, shoot). style is one of ${VFX_STYLES.join(", ")}; colors are 1-3 hex colours from or matching the palette. Pick styles that fit the theme (e.g. underwater = bubbles, space = sparkle/pixels, fire level = fire, candy = confetti, crash = explosion/smoke). Use "none" for slots that would be noisy.
 - scoring: pointsPerObstacle int 1-10, collectibleChance 0-1, pointsPerCollectible int 0-25.
 
 DIFFICULTY: a typical first-time player should survive roughly 20-60 seconds. Sensible starting points:
 - flappy: gravity 900-1300, jumpVelocity 380-480, scrollSpeed 160-230, speedRampPerSec 1-3, spawnIntervalMs 1400-1900, gapSize 150-200, variance 0.3-0.6.
 - runner: gravity 1800-2400, jumpVelocity 650-850, scrollSpeed 260-360, speedRampPerSec 4-8, spawnIntervalMs 1000-1600, variance 0.3-0.7.
+- shooter: scrollSpeed (enemy fall speed) 120-200, speedRampPerSec 2-5, spawnIntervalMs 600-1100, variance 0.4-0.8, playerSpeed 400-520, fireRateMs 220-340, enemyHp 1-2. gravity/jumpVelocity/gapSize are ignored.
+- dodge: scrollSpeed (fall speed) 220-320, speedRampPerSec 4-8, spawnIntervalMs 450-800, variance 0.5-0.9, playerSpeed 420-560, collectibleChance 0.25-0.45. gravity/jumpVelocity/gapSize are ignored.
 Tweak toward the prompt's mood (e.g. "frantic" = faster, "chill" = slower) but keep it playable.
 
 SPRITES: each is a compact, self-contained inline SVG string.
 - Root <svg xmlns="http://www.w3.org/2000/svg" viewBox="..." width="..." height="..."> with explicit numeric width/height matching the viewBox.
-- Sizes: player 48x48 facing RIGHT; obstacle: flappy = one tall pipe about 72x560 drawn upright with its cap/end at the TOP (the engine flips it for the upper pipe), runner = ground obstacle about 48x64 sitting on its bottom edge; collectible 32x32; decor 128x64 background parallax element (clouds, hills, stars...).
+- Sizes: player 48x48 (facing RIGHT for flappy/runner, facing UP for shooter/dodge); obstacle: shooter = enemy 48x48 facing DOWN, dodge = falling hazard 40x40, flappy = one tall pipe about 72x560 drawn upright with its cap/end at the TOP (the engine flips it for the upper pipe), runner = ground obstacle about 48x64 sitting on its bottom edge; collectible 32x32; decor 128x64 background parallax element (clouds, hills, stars...).
 - Use only basic shapes/paths/gradients. NO <script>, NO <image>, NO <foreignObject>, NO <text>, NO event handlers, NO external references or URLs (href only to internal "#id"), NO CSS @import. Transparent background.
 - Keep each under ~3000 characters. Bold, simple, readable at small size, on-theme, consistent style across sprites.
+
+UPLOADED ASSETS: in edit mode some sprites may be "asset:0x..." strings (the creator's own uploads). Copy those values back unchanged unless the request explicitly asks to replace that sprite.
 
 Respond with only the JSON object.
 
@@ -171,25 +198,44 @@ function repair(raw: any, forcedTemplate?: TemplateId): unknown {
   p.accent = fixHex(p.accent, "#ffb703");
   p.text = fixHex(p.text, "#ffffff");
   const s = (c.sprites ??= {});
-  for (const k of ["player", "obstacle", "collectible", "decor"]) {
+  for (const k of ["player", "obstacle", "collectible", "decor", "projectile"]) {
+    const optional = k !== "player" && k !== "obstacle";
+    if (isAssetRef(s[k])) continue; // creator upload: keep as-is
     if (typeof s[k] === "string" && s[k].trim()) s[k] = sanitizeSvg(s[k]);
-    else if (k === "collectible" || k === "decor") delete s[k];
+    else if (optional) delete s[k];
     // Optional sprites that are broken get dropped rather than failing the game.
-    if ((k === "collectible" || k === "decor") && s[k] && (s[k].length > 12_000 || !s[k].includes("</svg>"))) delete s[k];
+    if (optional && s[k] && (s[k].length > 12_000 || !s[k].includes("</svg>"))) delete s[k];
   }
+  if (c.template !== "shooter") delete s.projectile;
   const ph = (c.physics ??= {});
   ph.gravity = clamp(ph.gravity, 300, 2500, false, 1100);
   ph.jumpVelocity = clamp(ph.jumpVelocity, 250, 1000, false, 450);
   ph.scrollSpeed = clamp(ph.scrollSpeed, 120, 600, false, 200);
   ph.speedRampPerSec = clamp(ph.speedRampPerSec, 0, 15, false, 2);
   const ob = (c.obstacles ??= {});
-  ob.spawnIntervalMs = clamp(ob.spawnIntervalMs, 700, 2600, false, 1500);
+  ob.spawnIntervalMs = clamp(ob.spawnIntervalMs, 300, 2600, false, 1500);
   ob.gapSize = clamp(ob.gapSize, 110, 280, false, 170);
   ob.variance = clamp(ob.variance, 0, 1, false, 0.5);
   const sc = (c.scoring ??= {});
   sc.pointsPerObstacle = clamp(sc.pointsPerObstacle, 1, 10, true, 1);
   sc.collectibleChance = clamp(sc.collectibleChance, 0, 1, false, 0.3);
   sc.pointsPerCollectible = clamp(sc.pointsPerCollectible, 0, 25, true, 3);
+  const tu = (c.tuning ??= {});
+  tu.playerSpeed = clamp(tu.playerSpeed, 200, 900, false, 450);
+  tu.fireRateMs = clamp(tu.fireRateMs, 120, 800, false, 280);
+  tu.enemyHp = clamp(tu.enemyHp, 1, 5, true, 1);
+  if (c.vfx && typeof c.vfx === "object") {
+    for (const slot of Object.keys(c.vfx)) {
+      const v = c.vfx[slot];
+      if (!v || !(VFX_STYLES as readonly string[]).includes(v.style)) {
+        delete c.vfx[slot];
+        continue;
+      }
+      const colors = (Array.isArray(v.colors) ? v.colors : []).map((x: unknown) => fixHex(x, "")).filter(Boolean).slice(0, 4);
+      if (colors.length) v.colors = colors;
+      else delete v.colors;
+    }
+  }
   return c;
 }
 
@@ -242,6 +288,21 @@ function buildUserMessage(prompt: string, template?: TemplateId, base?: GameConf
   return `Create a game for this player prompt:${tpl}\n<prompt>${prompt}</prompt>`;
 }
 
+/** In edit mode, keep the creator's uploaded sounds and particle images (the model never outputs them). */
+function keepUploads(next: GameConfig, base?: GameConfig): GameConfig {
+  if (!base) return next;
+  const out: GameConfig = { ...next };
+  if (base.sfx) out.sfx = { ...base.sfx };
+  if (base.vfx) {
+    const vfx = { ...(out.vfx ?? {}) } as NonNullable<GameConfig["vfx"]>;
+    for (const [slot, preset] of Object.entries(base.vfx) as [keyof typeof vfx, NonNullable<GameConfig["vfx"]>[keyof typeof vfx]][]) {
+      if (preset?.texture && vfx[slot]) vfx[slot] = { ...vfx[slot]!, texture: preset.texture };
+    }
+    out.vfx = vfx;
+  }
+  return out;
+}
+
 export async function generateGameConfig(
   prompt: string,
   opts: { template?: TemplateId; base?: GameConfig } = {},
@@ -251,7 +312,7 @@ export async function generateGameConfig(
 
   let raw = await callClaude(userMsg);
   let result = gameConfigSchema.safeParse(repair(raw, forced));
-  if (result.success) return result.data;
+  if (result.success) return keepUploads(result.data, opts.base);
 
   // One retry, feeding back the validation errors.
   const issues = result.error.issues.map((i) => `- ${i.path.join(".")}: ${i.message}`).join("\n");
@@ -259,7 +320,7 @@ export async function generateGameConfig(
     `${userMsg}\n\nA previous attempt produced this config:\n${JSON.stringify(raw).slice(0, 20_000)}\n\nIt failed validation:\n${issues}\n\nReturn a corrected full config.`,
   );
   result = gameConfigSchema.safeParse(repair(raw, forced));
-  if (result.success) return result.data;
+  if (result.success) return keepUploads(result.data, opts.base);
   throw new GenerationError(
     "Generated config failed validation: " + result.error.issues.map((i) => i.path.join(".") + " " + i.message).join("; "),
     502,

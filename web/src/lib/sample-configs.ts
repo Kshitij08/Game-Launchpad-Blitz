@@ -12,6 +12,9 @@ import type { GameConfig } from "./game-config";
  *  - obstacle (runner): ground obstacle ~48x64 standing on its bottom edge
  *  - collectible: ~32x32
  *  - decor: ~128x64 background element (drifts across the sky)
+ *  - shooter: player ~48x48 facing UP, obstacle = enemy ~48x48 facing DOWN,
+ *    projectile ~8x20 bullet
+ *  - dodge: player ~48x48 at the bottom, obstacle = falling hazard ~40x40
  */
 
 const orbitHopper: GameConfig = {
@@ -137,6 +140,111 @@ const neonRush: GameConfig = {
   },
 };
 
+const cometClash: GameConfig = {
+  version: 1,
+  template: "shooter",
+  title: "Comet Clash",
+  tagline: "Alien bugs are swarming the comet belt. Hold the line, blast them all.",
+  scoreLabel: "bugs",
+  palette: {
+    sky: "#05061a",
+    skyBottom: "#1b1446",
+    ground: "#120c33",
+    accent: "#4df0ff",
+    text: "#ffffff",
+  },
+  sprites: {
+    player:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path d="M20 40 L24 47 L28 40 Z" fill="#ff9f1c"/><path d="M21.5 40 L24 44.5 L26.5 40 Z" fill="#fff3b0"/><path d="M14 26 L3 38 L4 42 L16 37 Z" fill="#ef476f" stroke="#151a3a" stroke-width="2" stroke-linejoin="round"/><path d="M34 26 L45 38 L44 42 L32 37 Z" fill="#ef476f" stroke="#151a3a" stroke-width="2" stroke-linejoin="round"/><path d="M24 2 Q33 12 33 28 L31 40 H17 L15 28 Q15 12 24 2 Z" fill="#e9edf8" stroke="#151a3a" stroke-width="2" stroke-linejoin="round"/><path d="M19 32 H29" stroke="#ef476f" stroke-width="3"/><ellipse cx="24" cy="18" rx="4.5" ry="6.5" fill="#4df0ff" stroke="#151a3a" stroke-width="2"/><ellipse cx="22.6" cy="16" rx="1.4" ry="2.2" fill="#ffffff"/></svg>',
+    obstacle:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><g stroke="#2a0b3d" stroke-width="2.5" stroke-linecap="round" fill="none"><path d="M12 18 L3 12 M12 25 L2 26 M14 32 L5 39 M36 18 L45 12 M36 25 L46 26 M34 32 L43 39"/><path d="M19 38 L16 46 M29 38 L32 46"/></g><ellipse cx="24" cy="23" rx="13" ry="15" fill="#8be04e" stroke="#2a0b3d" stroke-width="2.5"/><path d="M24 9 V37" stroke="#2a0b3d" stroke-width="2"/><ellipse cx="18" cy="17" rx="3" ry="5" fill="#c2ff8c" opacity="0.8"/><ellipse cx="24" cy="38" rx="9" ry="6" fill="#b14aed" stroke="#2a0b3d" stroke-width="2.5"/><circle cx="20" cy="39" r="2.6" fill="#ff3864"/><circle cx="28" cy="39" r="2.6" fill="#ff3864"/><circle cx="20.6" cy="38.4" r="0.9" fill="#ffffff"/><circle cx="28.6" cy="38.4" r="0.9" fill="#ffffff"/></svg>',
+    collectible:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M16 2 L26 12 L16 30 L6 12 Z" fill="#ffd23f" stroke="#a86b00" stroke-width="2" stroke-linejoin="round"/><path d="M6 12 H26 M16 2 L12 12 L16 30 L20 12 Z" fill="none" stroke="#a86b00" stroke-width="1.2" stroke-linejoin="round"/><path d="M11 7 L13 11" stroke="#fff6c2" stroke-width="2" stroke-linecap="round"/></svg>',
+    decor:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 64"><circle cx="92" cy="30" r="16" fill="#3a2a7a"/><path d="M80 24 Q92 18 104 24" stroke="#5e48b8" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="86" cy="36" r="3" fill="#2a1d5c"/><path d="M8 50 Q40 40 66 18" stroke="#4df0ff" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.5"/><circle cx="68" cy="16" r="3.5" fill="#bdf8ff"/><g fill="#ffffff"><circle cx="14" cy="10" r="1.6"/><circle cx="40" cy="30" r="1.2"/><circle cx="120" cy="56" r="1.6"/><circle cx="118" cy="8" r="1.2"/><circle cx="56" cy="56" r="1.2"/></g></svg>',
+    projectile:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 20"><rect x="0.5" y="0.5" width="7" height="19" rx="3.5" fill="#4df0ff"/><rect x="2.5" y="2" width="3" height="14" rx="1.5" fill="#ffffff"/></svg>',
+  },
+  physics: {
+    gravity: 1000,
+    jumpVelocity: 500,
+    scrollSpeed: 170,
+    speedRampPerSec: 5,
+  },
+  obstacles: {
+    spawnIntervalMs: 800,
+    gapSize: 160,
+    variance: 0.6,
+  },
+  scoring: {
+    pointsPerObstacle: 1,
+    collectibleChance: 0.18,
+    pointsPerCollectible: 5,
+  },
+  tuning: {
+    playerSpeed: 460,
+    fireRateMs: 240,
+    enemyHp: 2,
+  },
+  vfx: {
+    score: { style: "explosion", colors: ["#8be04e", "#ffd23f", "#ff3864"] },
+    shoot: { style: "pixels", colors: ["#4df0ff", "#ffffff"] },
+    collect: { style: "sparkle", colors: ["#ffd23f", "#fff6c2"] },
+    hit: { style: "explosion", colors: ["#ff9f1c", "#ef476f", "#ffffff"] },
+    trail: { style: "fire", colors: ["#ff9f1c", "#ffd23f"] },
+  },
+};
+
+const pizzaRain: GameConfig = {
+  version: 1,
+  template: "dodge",
+  title: "Pizza Rain",
+  tagline: "Toppings are falling! Catch the pepperoni, dodge the pineapple.",
+  scoreLabel: "dodged",
+  palette: {
+    sky: "#ffcf8a",
+    skyBottom: "#ff8f6b",
+    ground: "#8a4b2a",
+    accent: "#e63946",
+    text: "#3b1406",
+  },
+  sprites: {
+    player:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect x="21" y="34" width="6" height="13" rx="2" fill="#a0632e" stroke="#4a2410" stroke-width="2"/><ellipse cx="24" cy="26" rx="22" ry="11" fill="#d99a52" stroke="#4a2410" stroke-width="2.5"/><ellipse cx="24" cy="24.5" rx="18" ry="8" fill="#ffd166"/><ellipse cx="24" cy="25" rx="15.5" ry="6.4" fill="#f4a259" opacity="0.55"/><circle cx="16" cy="24" r="3" fill="#c1121f"/><circle cx="27" cy="22" r="3" fill="#c1121f"/><circle cx="32" cy="27" r="2.6" fill="#c1121f"/><circle cx="22" cy="28" r="2.4" fill="#c1121f"/><path d="M18 20 Q20 18 22 20" stroke="#3a7d44" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M29 29 Q31 27 33 29" stroke="#3a7d44" stroke-width="2" fill="none" stroke-linecap="round"/></svg>',
+    obstacle:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><g fill="#4caf50" stroke="#1f5e24" stroke-width="1.5" stroke-linejoin="round"><path d="M20 15 L14 2 L21 10 Z"/><path d="M20 15 L26 1 L22 11 Z"/><path d="M20 15 L8 6 L18 12 Z"/><path d="M20 15 L32 6 L22 12 Z"/></g><ellipse cx="20" cy="27" rx="11" ry="12" fill="#f4b400" stroke="#7a4a00" stroke-width="2"/><path d="M12 21 L28 35 M10 28 L22 38 M18 16 L30 27 M28 19 L12 35 M30 27 L19 38 M22 16 L10 27" stroke="#b07500" stroke-width="1.4" fill="none"/><circle cx="16" cy="25" r="1.5" fill="#1b1b1b"/><circle cx="24" cy="25" r="1.5" fill="#1b1b1b"/><path d="M16.5 31 Q20 28.5 23.5 31" stroke="#1b1b1b" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M13 21 L18 23 M27 21 L22 23" stroke="#1b1b1b" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    collectible:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#c1121f" stroke="#6a040f" stroke-width="2"/><circle cx="11" cy="12" r="2.2" fill="#8c0b16"/><circle cx="20" cy="10" r="1.8" fill="#8c0b16"/><circle cx="21" cy="20" r="2.4" fill="#8c0b16"/><circle cx="12" cy="21" r="1.6" fill="#8c0b16"/><path d="M9 9 Q12 6 15 6.5" stroke="#ff6b6b" stroke-width="2" fill="none" stroke-linecap="round"/></svg>',
+    decor:
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 64"><g fill="#fff4e0"><ellipse cx="38" cy="40" rx="26" ry="15"/><ellipse cx="68" cy="29" rx="28" ry="21"/><ellipse cx="96" cy="41" rx="23" ry="14"/><rect x="22" y="38" width="90" height="17" rx="8.5"/></g><ellipse cx="66" cy="54" rx="42" ry="4" fill="#ffd9b8" opacity="0.8"/></svg>',
+  },
+  physics: {
+    gravity: 1000,
+    jumpVelocity: 500,
+    scrollSpeed: 230,
+    speedRampPerSec: 7,
+  },
+  obstacles: {
+    spawnIntervalMs: 620,
+    gapSize: 160,
+    variance: 0.65,
+  },
+  scoring: {
+    pointsPerObstacle: 1,
+    collectibleChance: 0.6,
+    pointsPerCollectible: 3,
+  },
+  tuning: {
+    playerSpeed: 480,
+  },
+  vfx: {
+    collect: { style: "confetti", colors: ["#e63946", "#ffd166", "#4caf50"] },
+    hit: { style: "smoke", colors: ["#7a4a00", "#3b1406"] },
+    score: { style: "pixels", colors: ["#f4b400"] },
+    trail: { style: "none" },
+  },
+};
+
 export interface SampleConfig {
   id: string;
   name: string;
@@ -149,6 +257,8 @@ export const SAMPLE_CONFIGS: SampleConfig[] = [
   { id: "orbit-hopper", name: "Orbit Hopper", prompt: "a tap-to-fly space game with a little rocket dodging asteroid gates", config: orbitHopper },
   { id: "jungle-dash", name: "Jungle Dash", prompt: "a monkey running through the jungle jumping over tree stumps and collecting bananas", config: jungleDash },
   { id: "neon-rush", name: "Neon Rush", prompt: "neon synthwave city runner with a robot jumping over traffic pylons", config: neonRush },
+  { id: "comet-clash", name: "Comet Clash", prompt: "a space shooter where my little ship blasts swarms of alien bugs in a comet belt", config: cometClash },
+  { id: "pizza-rain", name: "Pizza Rain", prompt: "catch falling pizza toppings and dodge the pineapples", config: pizzaRain },
 ];
 
 export function getSampleConfig(id: string): GameConfig | undefined {

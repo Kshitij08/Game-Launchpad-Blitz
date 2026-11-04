@@ -5,6 +5,7 @@
  * game it also closes mining, buys from the curve, redeems and claims creator tokens.
  *
  * Run from web/:  npx tsx scripts/seed.ts   (dev server must be running; SIGN_URL to override)
+ * ONLY=comet-clash,pizza-rain limits which samples launch; SKIP_TRADE=1 skips the close/buy/redeem step.
  */
 import fs from "fs";
 import path from "path";
@@ -49,9 +50,10 @@ async function main() {
   console.log(`Deployer ${deployer.address}: ${formatEther(await pub.getBalance({ address: deployer.address }))} MON`);
 
   // 1) Launch the three sample games.
-  const tickers: Record<string, string> = { "orbit-hopper": "ORBIT", "jungle-dash": "JUNGL", "neon-rush": "NEON" };
+  const tickers: Record<string, string> = { "orbit-hopper": "ORBIT", "jungle-dash": "JUNGL", "neon-rush": "NEON", "comet-clash": "COMET", "pizza-rain": "PIZZA" };
+  const only = process.env.ONLY?.split(",").map((x) => x.trim());
   const games: { id: bigint; title: string; sessions: `0x${string}`; curve: `0x${string}`; vault: `0x${string}` }[] = [];
-  for (const s of SAMPLE_CONFIGS) {
+  for (const s of SAMPLE_CONFIGS.filter((x) => !only || only.includes(x.id))) {
     const { hash } = await saveConfig(s.config);
     const tx = await wallet(deployer).writeContract({
       address: GAME_FACTORY,
@@ -111,6 +113,7 @@ async function main() {
   console.log("Creator claimed the first 25% on each game");
 
   // 5) Last game: open trading, buy, redeem.
+  if (process.env.SKIP_TRADE) return;
   const last = games[games.length - 1];
   await wait(await wallet(deployer).writeContract({ address: last.sessions, abi: sessionManagerAbi, functionName: "closeMining" }));
   const floor0 = await pub.readContract({ address: last.vault, abi: treasuryVaultAbi, functionName: "floorPrice" });

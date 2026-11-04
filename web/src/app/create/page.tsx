@@ -10,7 +10,8 @@ import { GAME_FACTORY, gameFactoryAbi } from "@/lib/contracts";
 import { fetchConfig } from "@/lib/hooks/useGames";
 import { useTx, errorText } from "@/lib/hooks/useTx";
 import { SAMPLE_CONFIGS } from "@/lib/sample-configs";
-import type { GameConfig } from "@/lib/game-config";
+import { TEMPLATES, TEMPLATE_INFO, type GameConfig, type TemplateId } from "@/lib/game-config";
+import { AssetCustomizer } from "@/components/AssetCustomizer";
 
 export default function CreatePage() {
   return (
@@ -32,8 +33,10 @@ function Create() {
   const player = useRef<GamePlayerHandle>(null);
 
   const [prompt, setPrompt] = useState("");
-  const [template, setTemplate] = useState<"" | "flappy" | "runner">("");
+  const [template, setTemplate] = useState<"" | TemplateId>("");
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [original, setOriginal] = useState<GameConfig | null>(null); // AI version, for "Reset"
+  const [dirty, setDirty] = useState(false); // creator edits not yet saved
   const [base, setBase] = useState<Draft | null>(null); // parent config when remixing
   const [generating, setGenerating] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -59,6 +62,7 @@ function Create() {
       const d = { config: c, hash: p.configHash };
       setBase(d);
       setDraft(d);
+      setOriginal(c);
     });
   }, [parent.data]);
 
@@ -74,7 +78,7 @@ function Create() {
     setGenerating(true);
     setElapsed(0);
     try {
-      const baseHash = mode === "edit" ? draft?.hash : undefined;
+      const baseHash = mode === "edit" ? await ensureSaved() : undefined;
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -83,6 +87,8 @@ function Create() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed. Try again.");
       setDraft({ config: data.config, hash: data.hash });
+      setOriginal(data.config);
+      setDirty(false);
       setName(data.config.title);
       setSymbol(tickerFrom(data.config.title));
       setTestScore(null);
@@ -93,16 +99,33 @@ function Create() {
     }
   }
 
+  /** Saves creator edits (uploads, effects) as a new config and returns the hash to use. */
+  async function ensureSaved(): Promise<`0x${string}` | undefined> {
+    if (!draft) return undefined;
+    if (!dirty) return draft.hash;
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ config: draft.config }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Couldn't save your changes");
+    setDraft({ config: data.config, hash: data.hash });
+    setDirty(false);
+    return data.hash;
+  }
+
   async function launch() {
     if (!draft) return;
     setError(null);
     setLaunching(true);
     try {
+      const hash = (await ensureSaved())!;
       const receipt = await send({
         address: GAME_FACTORY,
         abi: gameFactoryAbi,
         functionName: "createGame",
-        args: [name.trim(), symbol.trim().toUpperCase(), draft.hash, parentId],
+        args: [name.trim(), symbol.trim().toUpperCase(), hash, parentId],
       });
       const [ev] = parseEventLogs({ abi: gameFactoryAbi, logs: receipt.logs, eventName: "GameCreated" });
       router.push(`/game/${ev.args.id}`);
@@ -114,7 +137,7 @@ function Create() {
 
   const isRemix = parentId > 0n;
   const canLaunch = !!draft && !!address && name.trim().length >= 2 && /^[A-Za-z0-9]{2,8}$/.test(symbol.trim()) && !launching;
-  const unchangedRemix = isRemix && draft?.hash === base?.hash;
+  const unchangedRemix = isRemix && !dirty && draft?.hash === base?.hash;
 
   return (
     <div className="min-h-screen bg-[#0d0b17] text-white">
@@ -126,7 +149,7 @@ function Create() {
             <p className="text-white/70">
               {isRemix
                 ? "Describe what to change. 10% of every play fee in your remix flows to the original game's vault."
-                : "Describe your game in a sentence. Claude builds it on a 2D arcade template in about 10 seconds."}
+                : "Describe your game in a sentence. Claude builds it on a 2D arcade template in about 20 seconds."}
             </p>
           </div>
 
@@ -144,13 +167,13 @@ function Create() {
           {!isRemix && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-white/60">Style:</span>
-              {(["", "flappy", "runner"] as const).map((t) => (
+              {(["", ...TEMPLATES] as const).map((t) => (
                 <button
                   key={t || "auto"}
                   onClick={() => setTemplate(t)}
                   className={`rounded-full border px-3 py-1 ${template === t ? "border-[#a58cff] bg-[#836ef9]/20" : "border-white/15 text-white/70"}`}
                 >
-                  {t === "" ? "Let Claude pick" : t === "flappy" ? "Tap to fly" : "Endless runner"}
+                  {t === "" ? "Let Claude pick" : TEMPLATE_INFO[t].label}
                 </button>
               ))}
             </div>
@@ -183,10 +206,21 @@ function Create() {
           </div>
           {generating && (
             <p className="text-sm text-white/60">
-              Claude is designing the rules, tuning the difficulty and drawing the sprites. This takes about 10–15 seconds.
+              Claude is designing the rules, tuning the difficulty and drawing the sprites and effects. This takes about 15–25 seconds.
             </p>
           )}
           {error && <p className="text-sm text-red-300">{error}</p>}
+
+          {draft && original && (
+            <AssetCustomizer
+              config={draft.config}
+              original={original}
+              onChange={(next) => {
+                setDraft({ config: next, hash: draft.hash });
+                setDirty(true);
+              }}
+            />
+          )}
 
           {draft && (
             <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
