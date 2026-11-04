@@ -90,7 +90,8 @@ export async function loadConfigAssets(config: GameConfig): Promise<Record<strin
 
 export interface GamePlayerHandle {
   /** Start a run (queued until the config is loaded). */
-  start(): void;
+  /** Start a run. Pass a seed to replay the same obstacle pattern (beat-my-score links). */
+  start(seed?: number): void;
   /** Return to the title screen. */
   reset(): void;
 }
@@ -129,7 +130,7 @@ export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function
   });
 
   const configKey = useMemo(() => JSON.stringify(config), [config]);
-  const st = useRef({ booted: false, sentKey: null as string | null, loaded: false, wantStart: false });
+  const st = useRef({ booted: false, sentKey: null as string | null, loaded: false, wantStart: false, seed: null as number | null });
 
   const send = useCallback((msg: ParentToGame) => {
     iframeRef.current?.contentWindow?.postMessage(msg, "*");
@@ -194,7 +195,7 @@ export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function
           cb.current.onLoaded?.();
           if (st.current.wantStart || cb.current.autoStart) {
             st.current.wantStart = false;
-            send({ source: "pop", type: "start" });
+            send({ source: "pop", type: "start", ...(st.current.seed != null ? { seed: st.current.seed } : {}) });
           }
           break;
         case "score":
@@ -224,9 +225,10 @@ export const GamePlayer = forwardRef<GamePlayerHandle, GamePlayerProps>(function
   useImperativeHandle(
     ref,
     () => ({
-      start() {
+      start(seed?: number) {
         iframeRef.current?.focus();
-        if (st.current.loaded) send({ source: "pop", type: "start" });
+        st.current.seed = seed ?? null;
+        if (st.current.loaded) send({ source: "pop", type: "start", ...(seed != null ? { seed } : {}) });
         else st.current.wantStart = true;
       },
       reset() {

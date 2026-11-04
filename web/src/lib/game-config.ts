@@ -155,7 +155,7 @@ export type ParentToGame =
       best?: number; // player's best score on this game (iframe has no storage), for "NEW BEST"
       ticker?: string; // token symbol, e.g. "PIZZA", for meme lines like "$PIZZA TO THE MOON"
     }
-  | { source: "pop"; type: "start" } // begin a run (after a session is paid for)
+  | { source: "pop"; type: "start"; seed?: number } // begin a run (after a session is paid for)
   | { source: "pop"; type: "reset" } // back to title screen
   | { source: "pop"; type: "mute"; muted: boolean };
 

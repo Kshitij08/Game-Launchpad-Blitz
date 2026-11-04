@@ -21,6 +21,7 @@ import { useTx, errorText } from "@/lib/hooks/useTx";
 import { mon, tokens } from "@/lib/format";
 import { monadTestnet } from "@/lib/chain";
 import { DegenFeed } from "@/components/DegenFeed";
+import { Leaderboard } from "@/components/Leaderboard";
 import {
   PixelBadge,
   PixelButton,
@@ -104,6 +105,16 @@ export default function GamePage() {
   const claimed = r(14) as bigint | undefined;
   const milestones = r(15) as readonly bigint[] | undefined;
   const spot = r(16) as bigint | undefined;
+  const launchPrice = p?.[3];
+  // ORE-style "cost to mine": MON a full-skill run pays per coin it mines (deposit / budget).
+  const costToMine =
+    entryFee !== undefined && launchPrice !== undefined && floor !== undefined
+      ? (entryFee * 10000n * (floor > launchPrice ? floor : launchPrice)) / ((entryFee * 7000n) || 1n)
+      : undefined;
+  const priceRef = miningClosed ? spot : costToMine;
+  const floorPct = floor !== undefined && priceRef ? Number((floor * 10000n) / priceRef) / 100 : undefined;
+  const beatLink = (s: number) =>
+    typeof window === "undefined" ? "" : `${window.location.origin}/game/${params.id}?seed=${runSeed.current ?? 0}&beat=${s}`;
   const creatorEarned = r(17) as bigint | undefined;
 
   const isCreator = !!address && !!g && getAddress(address) === getAddress(g.creator);
@@ -131,6 +142,14 @@ export default function GamePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [lastMined, setLastMined] = useState<bigint | null>(null);
   const sessionId = useRef<bigint | null>(null);
+  const runSeed = useRef<number | null>(null);
+  // "Beat my score" links: ?seed=<n>&beat=<score> replays the same obstacle pattern.
+  const [challenge, setChallenge] = useState<{ seed: number; beat: number } | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const seed = Number(q.get("seed")), beat = Number(q.get("beat"));
+    if (Number.isFinite(seed) && q.get("seed") && Number.isFinite(beat)) setChallenge({ seed: seed >>> 0, beat });
+  }, []);
 
   async function play() {
     if (!g || entryFee === undefined) return;
@@ -147,8 +166,9 @@ export default function GamePage() {
       });
       const [ev] = parseEventLogs({ abi: sessionManagerAbi, logs: receipt.logs, eventName: "SessionStarted" });
       sessionId.current = ev.args.sessionId;
+      runSeed.current = challenge ? challenge.seed : (Number(ev.args.sessionId % 1000000n) * 7919 + Number(id) * 104729) >>> 0;
       setPhase("playing");
-      player.current?.start();
+      player.current?.start(runSeed.current);
       reads.refetch();
     } catch (e) {
       setMsg(errorText(e));
@@ -316,6 +336,11 @@ export default function GamePage() {
               70% of every entry fee goes to the vault, so the floor only goes up.
               {!miningClosed && ` While mining is open, each run mines coins worth its vault deposit at the floor; score ${targetScore?.toString() ?? "40"}+ gets the full amount, so no run can lower the floor.`}
             </p>
+            {challenge && (
+              <p className="text-lg text-[color:var(--good)]">
+                Challenge: beat {challenge.beat} on the same seeded run.{phase === "done" ? (score > challenge.beat ? " You won it. GG." : " Not this time. Run it back.") : ""}
+              </p>
+            )}
             {phase === "done" && lastMined !== null && (
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-lg text-[color:var(--good)]">
@@ -327,10 +352,16 @@ export default function GamePage() {
                   rel="noreferrer"
                   href={`https://x.com/intent/post?text=${encodeURIComponent(
                     `${score >= 30 ? "built different:" : score <= 5 ? "got rekt:" : "gm. just scored"} ${score} ${cfg?.scoreLabel ?? "points"} in ${gameTitle} ($${symbol}) on @monad_xyz testnet.\n\nevery run pumps an unruggable floor. ape in:`,
-                  )}&url=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
+                  )}&url=${encodeURIComponent(beatLink(score))}`}
                 >
                   Share on X
                 </a>
+                <button
+                  className="pixel-btn-ghost"
+                  onClick={() => navigator.clipboard?.writeText(beatLink(score)).then(() => setMsg("Beat-my-score link copied. Friends get the same run.")).catch(() => setMsg(beatLink(score)))}
+                >
+                  Copy beat-my-score link
+                </button>
               </div>
             )}
             {msg && <p className="text-lg text-[color:var(--danger)]">{msg}</p>}
@@ -340,6 +371,7 @@ export default function GamePage() {
         <section className="flex flex-col gap-6">
           <Reveal delay={1} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <StatBlock label="Unruggable floor" value={`${mon(floor, 6)} MON`} hint="vault ÷ supply" accent />
+            <StatBlock label={miningClosed ? "Floor vs buy price" : "Floor vs cost to mine"} value={floorPct !== undefined ? `${floorPct.toFixed(0)}%` : "…"} hint={miningClosed ? `buy ${mon(spot, 6)}` : `mine 1 for ${mon(costToMine, 6)}`} />
             <StatBlock label="Vault" value={`${mon(vaultBal.data?.value, 4)} MON`} />
             <StatBlock label="Supply" value={`${tokens(supply, 0)} ${symbol}`} />
             <StatBlock label="Players" value={players?.toString() ?? "…"} />
@@ -350,6 +382,7 @@ export default function GamePage() {
           {g && (
             <DegenFeed sessions={g.sessions} curve={g.curve} vault={g.vault} symbol={symbol} creator={g.creator} />
           )}
+          {g && <Leaderboard sessions={g.sessions} symbol={symbol} />}
 
           <MarketPanel heading={miningClosed ? "Trading is open" : "Play-mining is open"}>
             {!miningClosed ? (

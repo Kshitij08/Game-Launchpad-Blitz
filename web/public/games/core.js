@@ -1283,7 +1283,7 @@
         tex: { particle: "pop_dot" },
         size: {},
         palette: pal,
-        rng: mulberry32((Date.now() ^ (Math.random() * 1e9)) >>> 0),
+        rng: mulberry32(window.POP_SEED != null ? window.POP_SEED : (Date.now() ^ (Math.random() * 1e9)) >>> 0),
         elapsedMs: 0,
         phase: this.phase,
         score: 0,
@@ -2319,7 +2319,11 @@
     var d = e.data;
     if (!d || d.source !== "pop") return;
     if (d.type === "load") handleLoad(d.config, d.assets, d.best, d.ticker);
-    else if (d.type === "start") rt.arm();
+    else if (d.type === "start") {
+      // Seeded runs: the same seed gives the same obstacle pattern ("beat my score" links, tournaments).
+      window.POP_SEED = typeof d.seed === "number" && isFinite(d.seed) ? d.seed >>> 0 : null;
+      rt.arm();
+    }
     else if (d.type === "reset") {
       rt.pendingStart = false;
       rt.toTitle();
