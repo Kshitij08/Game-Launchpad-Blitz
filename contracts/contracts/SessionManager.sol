@@ -5,24 +5,30 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {GameToken} from "./GameToken.sol";
+import {TreasuryVault} from "./TreasuryVault.sol";
 
-/// @notice Paid play sessions for one game.
-/// - startSession: player pays the entry fee, split between the vault, the
-///   creator and (for remixes) the parent game's vault.
-/// - endSession: backend-signed score. During the mining phase this mints
-///   tokens to the player (idea #1: play-mined fair launch).
-/// - Creator allocation unlocks in tranches as unique players arrive (idea #3).
+/// @notice Paid play sessions for one game (v2).
+/// - startSession: the player pays the entry fee. The vault share goes into the
+///   vault now; the parent game's share (remixes) goes to its vault; the
+///   creator's share is held in escrow here.
+/// - endSession: backend-signed score. While mining is open, the run mints
+///   coins from a budget worth exactly its vault deposit at the current floor
+///   (or the launch price before any coins exist). The score decides the share
+///   of that budget: `minShareBps` at score 0, 100% at `targetScore` or more.
+///   So a run can never lower the floor; weaker runs raise it.
+/// - Creator earnings unlock 25% at each unique-player milestone (idea #3),
+///   paid in MON, so creators never dilute holders.
 contract SessionManager is EIP712, ReentrancyGuard {
     struct Params {
         uint256 entryFee; // wei per session
         uint16 vaultBps; // share of fee to this game's vault
-        uint16 parentBps; // share of fee to parent vault (remixes), 0 if none
-        // creator gets the rest
-        uint256 baseReward; // tokens minted per finished session while mining
-        uint256 rewardPerPoint; // extra tokens per score point while mining
+        uint16 parentBps; // share of fee to parent vault (remixes), 0 if none; creator escrow gets the rest
+        uint256 launchPrice; // wei per whole token used to price mining before any supply exists
+        uint256 targetScore; // score that earns the full mining budget
+        uint16 minShareBps; // share of the budget a score of 0 still earns
         uint256 walletMiningCap; // max tokens one wallet can mine
         uint256 miningSupplyCap; // mining closes when this much has been mined
-        uint256 creatorAllocation; // total creator tokens, unlocked by milestones
+        uint256 miningRunCap; // ...or after this many finished runs
     }
 
     struct Session {
@@ -30,6 +36,7 @@ contract SessionManager is EIP712, ReentrancyGuard {
         uint64 startedAt;
         bool ended;
         uint256 score;
+        uint256 deposit; // wei this session put into the vault
     }
 
     bytes32 public constant SESSION_TYPEHASH =
@@ -51,13 +58,14 @@ contract SessionManager is EIP712, ReentrancyGuard {
     uint256 public bestScore;
     address public bestPlayer;
     bool public miningClosed;
-    uint256 public creatorClaimed;
+    uint256 public creatorEarned; // MON held in escrow for the creator
+    uint256 public creatorClaimed; // MON already paid out
 
     mapping(uint256 => Session) public sessions;
     mapping(address => bool) public hasPlayed;
     mapping(address => uint256) public minedBy;
 
-    /// Unique-player milestones; each unlocks 25% of the creator allocation.
+    /// Unique-player milestones; each unlocks 25% of the creator's escrowed earnings.
     uint256[4] public milestones = [uint256(3), 10, 25, 50];
 
     event SessionStarted(uint256 indexed sessionId, address indexed player, uint256 fee);
@@ -97,14 +105,15 @@ contract SessionManager is EIP712, ReentrancyGuard {
         Params memory p = params;
         if (msg.value != p.entryFee) revert WrongFee();
         sessionId = ++sessionCount;
-        sessions[sessionId] = Session({player: msg.sender, startedAt: uint64(block.timestamp), ended: false, score: 0});
 
         uint256 toVault = (msg.value * p.vaultBps) / 10_000;
         uint256 toParent = (msg.value * p.parentBps) / 10_000;
-        uint256 toCreator = msg.value - toVault - toParent;
+        creatorEarned += msg.value - toVault - toParent;
+
+        sessions[sessionId] =
+            Session({player: msg.sender, startedAt: uint64(block.timestamp), ended: false, score: 0, deposit: toVault});
         _send(vault, toVault);
         if (toParent > 0) _send(parentVault, toParent);
-        _send(creator, toCreator);
 
         emit SessionStarted(sessionId, msg.sender, msg.value);
     }
@@ -134,7 +143,7 @@ contract SessionManager is EIP712, ReentrancyGuard {
         uint256 mined = 0;
         if (!miningClosed) {
             Params memory p = params;
-            mined = p.baseReward + score * p.rewardPerPoint;
+            mined = previewMined(s.deposit, score);
             uint256 walletRoom = p.walletMiningCap - minedBy[msg.sender];
             if (mined > walletRoom) mined = walletRoom;
             uint256 supplyRoom = p.miningSupplyCap - totalMined;
@@ -144,10 +153,22 @@ contract SessionManager is EIP712, ReentrancyGuard {
                 totalMined += mined;
                 token.mint(msg.sender, mined);
             }
-            if (totalMined >= p.miningSupplyCap) _closeMining();
+            if (totalMined >= p.miningSupplyCap || finishedSessions >= p.miningRunCap) _closeMining();
         }
 
         emit SessionEnded(sessionId, msg.sender, score, mined);
+    }
+
+    /// Coins a run with this vault deposit and score would mine right now (before wallet/supply caps).
+    /// Budget = deposit / max(floor, launchPrice): minting the full budget keeps the floor where it was.
+    function previewMined(uint256 deposit, uint256 score) public view returns (uint256) {
+        Params memory p = params;
+        uint256 price = TreasuryVault(vault).floorPrice();
+        if (price < p.launchPrice) price = p.launchPrice;
+        uint256 budget = (deposit * 1e18) / price;
+        uint256 skill = score >= p.targetScore ? p.targetScore : score;
+        uint256 shareBps = p.minShareBps + ((10_000 - uint256(p.minShareBps)) * skill) / p.targetScore;
+        return (budget * shareBps) / 10_000;
     }
 
     // ------------------------------------------------------------- creator
@@ -158,20 +179,22 @@ contract SessionManager is EIP712, ReentrancyGuard {
         if (!miningClosed) _closeMining();
     }
 
+    /// MON of the creator's escrow unlocked so far (25% per milestone reached).
     function creatorUnlocked() public view returns (uint256) {
         uint256 tranches = 0;
         for (uint256 i = 0; i < milestones.length; i++) {
             if (uniquePlayers >= milestones[i]) tranches++;
         }
-        return (params.creatorAllocation * tranches) / milestones.length;
+        return (creatorEarned * tranches) / milestones.length;
     }
 
-    function claimCreator() external {
+    function claimCreator() external nonReentrant {
         if (msg.sender != creator) revert NotCreator();
-        uint256 amount = creatorUnlocked() - creatorClaimed;
-        if (amount == 0) revert NothingToClaim();
-        creatorClaimed += amount;
-        token.mint(creator, amount);
+        uint256 unlocked = creatorUnlocked();
+        if (unlocked <= creatorClaimed) revert NothingToClaim();
+        uint256 amount = unlocked - creatorClaimed;
+        creatorClaimed = unlocked;
+        _send(creator, amount);
         emit CreatorClaimed(amount, creatorClaimed);
     }
 

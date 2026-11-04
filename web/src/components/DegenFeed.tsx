@@ -75,7 +75,7 @@ export function DegenFeed({
             out.push({ key, block, who: creator, tone: "hype", text: `mining closed at ${tokens(a.totalMined as bigint, 0)} ${sym} · trading is LIVE` });
             break;
           case "CreatorClaimed":
-            out.push({ key, block, who: creator, tone: "neutral", text: `dev unlocked ${tokens(a.amount as bigint, 0)} ${sym} (earned by real players, not a rug)` });
+            out.push({ key, block, who: creator, tone: "neutral", text: `dev unlocked ${mon(a.amount as bigint)} MON of fees (earned by real players, zero dev coins)` });
             break;
         }
       }

@@ -3,7 +3,7 @@
 Prompt a game. Launch a coin. Every run pumps an unruggable floor. Built for Monad Blitz Mumbai.
 
 **Live:** https://proof-of-play-wheat.vercel.app (Monad testnet) ·
-**GameFactory:** [`0xc25e…e3eb`](https://testnet.monadexplorer.com/contracts/full_match/10143/0xc25e90f474f7c4f69ddfac66e4a91ff3f9e6e3eb/)
+**GameFactory:** [`0xa829…a69c`](https://testnet.monadexplorer.com/contracts/full_match/10143/0xa8294480d7fc4735a350a9b32c582bcd821fa69c/) (v2)
 
 - Early tokens can only be mined by playing.
 - Every paid play fills a vault that sets a floor price (`floor = vault ÷ supply`).

@@ -1,7 +1,7 @@
 {
   "chainId": 10143,
-  "gameFactory": "0xc25e90f474f7c4f69ddfac66e4a91ff3f9e6e3eb",
-  "deployBlock": "76853683",
+  "gameFactory": "0xa8294480d7fc4735a350a9b32c582bcd821fa69c",
+  "deployBlock": "76900311",
   "scoreSigner": "0x199102eB0620a98335D8F63B0Aa3BcA21098e513",
-  "deployedAt": "2026-11-04T07:11:37.818Z"
+  "deployedAt": "2026-11-04T11:11:13.722Z"
 }

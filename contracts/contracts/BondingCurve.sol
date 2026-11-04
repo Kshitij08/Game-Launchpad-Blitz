@@ -16,6 +16,7 @@ contract BondingCurve is ReentrancyGuard {
     SessionManager public immutable sessions;
     uint256 public immutable basePrice; // wei per whole token at sold = 0
     uint256 public immutable slope; // wei added to the price per whole token sold
+    uint256 public constant FLOOR_PREMIUM_BPS = 1_000; // buyers pay at least floor + 10%, so every buy lifts the floor
 
     uint256 public sold; // token units minted through the curve
 
@@ -43,10 +44,10 @@ contract BondingCurve is ReentrancyGuard {
         return basePrice + (slope * sold) / 1e18;
     }
 
-    /// Price a buyer pays for the next token: curve price, but never below the floor.
+    /// Price a buyer pays for the next token: curve price, but never below floor + 10%.
     function spotPrice() external view returns (uint256) {
         uint256 c = curvePrice();
-        uint256 f = vault.floorPrice();
+        uint256 f = (vault.floorPrice() * (10_000 + FLOOR_PREMIUM_BPS)) / 10_000;
         return c > f ? c : f;
     }
 
@@ -54,7 +55,7 @@ contract BondingCurve is ReentrancyGuard {
     function quoteBuy(uint256 amount) public view returns (uint256) {
         uint256 s = sold;
         uint256 curveCost = (basePrice * amount) / 1e18 + (slope * ((s + amount) * (s + amount) - s * s)) / 2e36;
-        uint256 floorCost = (vault.floorPrice() * amount) / 1e18;
+        uint256 floorCost = (vault.floorPrice() * amount * (10_000 + FLOOR_PREMIUM_BPS)) / 1e18 / 10_000;
         uint256 cost = curveCost > floorCost ? curveCost : floorCost;
         return cost + 1; // round up so the floor never drops from rounding
     }

@@ -42,7 +42,7 @@ async function main() {
   const deployer = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`);
   const wallet = (account: Account) => createWalletClient({ account, chain: monadTestnet, transport: http() });
   const wait = async (hash: `0x${string}`) => {
-    const r = await pub.waitForTransactionReceipt({ hash });
+    const r = await pub.waitForTransactionReceipt({ hash, timeout: 180_000, pollingInterval: 1_000 });
     if (r.status !== "success") throw new Error(`tx reverted ${hash}`);
     return r;
   };

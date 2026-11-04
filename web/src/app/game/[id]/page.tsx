@@ -62,6 +62,7 @@ export default function GamePage() {
           { address: g.sessions, abi: sessionManagerAbi, functionName: "creatorClaimed" },
           { address: g.sessions, abi: sessionManagerAbi, functionName: "getMilestones" },
           { address: g.curve, abi: bondingCurveAbi, functionName: "spotPrice" },
+          { address: g.sessions, abi: sessionManagerAbi, functionName: "creatorEarned" },
         ]
       : [],
     query: { enabled: !!g, refetchInterval: 5_000 },
@@ -76,9 +77,10 @@ export default function GamePage() {
   const floor = r(4) as bigint | undefined;
   const p = r(5) as readonly bigint[] | undefined;
   const entryFee = p?.[0];
-  const walletCap = p?.[5];
-  const supplyCap = p?.[6];
-  const creatorAlloc = p?.[7];
+  const targetScore = p?.[4];
+  const walletCap = p?.[6];
+  const supplyCap = p?.[7];
+  const runCap = p?.[8];
   const finished = r(6) as bigint | undefined;
   const players = r(7) as bigint | undefined;
   const totalMined = r(8) as bigint | undefined;
@@ -90,6 +92,7 @@ export default function GamePage() {
   const claimed = r(14) as bigint | undefined;
   const milestones = r(15) as readonly bigint[] | undefined;
   const spot = r(16) as bigint | undefined;
+  const creatorEarned = r(17) as bigint | undefined;
 
   const isCreator = !!address && !!g && getAddress(address) === getAddress(g.creator);
 
@@ -296,7 +299,7 @@ export default function GamePage() {
             </div>
             <p className="text-xs text-white/50">
               70% of every entry fee goes to the vault, so the floor only goes up.
-              {!miningClosed && " While mining is open, finishing a run mines tokens: 10 + 1 per point."}
+              {!miningClosed && ` While mining is open, each run mines coins worth its vault deposit at the floor; score ${targetScore?.toString() ?? "40"}+ gets the full amount, so no run can lower the floor.`}
             </p>
             {phase === "done" && lastMined !== null && (
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -339,7 +342,7 @@ export default function GamePage() {
             {!miningClosed ? (
               <>
                 <p className="text-sm text-white/70">
-                  Tokens can only be earned by playing until {tokens(supplyCap, 0)} {symbol} are mined. Then the curve opens for buyers.
+                  Coins can only be earned by playing until {tokens(supplyCap, 0)} {symbol} are mined or {runCap?.toString() ?? "300"} runs are played. Then the curve opens for buyers.
                 </p>
                 <Bar pct={miningPct} />
                 <p className="font-mono text-xs text-white/60 tabular-nums">
@@ -349,7 +352,7 @@ export default function GamePage() {
             ) : (
               <>
                 <p className="text-sm text-white/70">
-                  Buy price is {mon(spot, 6)} MON per {symbol} and never drops below the floor. Every MON spent goes into the vault.
+                  Buy price is {mon(spot, 6)} MON per {symbol}, always at least 10% above the floor. Every MON spent goes into the vault, so each buy pumps the floor for all holders.
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <input id="buy-amount" className={input} value={buyAmt} onChange={(e) => setBuyAmt(e.target.value)} inputMode="decimal" />
@@ -391,7 +394,7 @@ export default function GamePage() {
           {/* Creator */}
           <Panel title="Creator unlocks">
             <p className="text-sm text-white/70">
-              The creator&apos;s {tokens(creatorAlloc, 0)} {symbol} unlock 25% at a time as real players arrive.
+              The creator&apos;s 30% of entry fees ({mon(creatorEarned)} MON so far) sits in escrow and unlocks 25% at a time as real players arrive. No free dev coins, so the floor is never diluted.
             </p>
             <div className="flex flex-wrap gap-2">
               {milestones?.map((m, i) => {
@@ -404,7 +407,7 @@ export default function GamePage() {
               })}
             </div>
             <p className="font-mono text-xs text-white/60 tabular-nums">
-              Unlocked {tokens(unlocked, 0)} · claimed {tokens(claimed, 0)}
+              Unlocked {mon(unlocked)} MON · claimed {mon(claimed)} MON
             </p>
             {isCreator && (
               <div className="flex flex-wrap gap-2">
@@ -413,7 +416,7 @@ export default function GamePage() {
                   disabled={!!busy || unlocked === undefined || claimed === undefined || unlocked <= claimed}
                   onClick={() => act("Claim", () => send({ address: g!.sessions, abi: sessionManagerAbi, functionName: "claimCreator" }))}
                 >
-                  {busy === "Claim" ? "Claiming…" : "Claim unlocked tokens"}
+                  {busy === "Claim" ? "Claiming…" : "Claim unlocked MON"}
                 </button>
                 {!miningClosed && (
                   <button

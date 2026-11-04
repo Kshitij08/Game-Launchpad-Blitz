@@ -53,14 +53,15 @@ contract GameFactory {
         defaultParams = SessionManager.Params({
             entryFee: 0.02 ether,
             vaultBps: 7_000, // 70% to the vault
-            parentBps: 1_000, // 10% to the parent's vault on remixes (else creator)
-            baseReward: 10 ether, // 10 tokens per finished session
-            rewardPerPoint: 1 ether, // +1 token per point
+            parentBps: 1_000, // 10% to the parent's vault on remixes (else to the creator's escrow)
+            launchPrice: 0.0001 ether, // mining price before supply exists: a full-skill first run mines 140 coins
+            targetScore: 40, // score 40+ earns the run's full mining budget
+            minShareBps: 2_500, // score 0 still earns 25% of it
             walletMiningCap: 500 ether,
             miningSupplyCap: 10_000 ether,
-            creatorAllocation: 1_000 ether
+            miningRunCap: 300 // mining closes after 300 runs if the supply cap isn't hit first
         });
-        defaultBasePrice = 0.0005 ether; // wei per whole token
+        defaultBasePrice = 0.0005 ether; // curve start, wei per whole token
         defaultSlope = 0.0000001 ether; // price +0.0001 MON per 1,000 tokens sold
     }
 
